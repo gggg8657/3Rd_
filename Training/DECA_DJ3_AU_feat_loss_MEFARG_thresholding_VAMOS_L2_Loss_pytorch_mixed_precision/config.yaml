@@ -9,10 +9,10 @@
 # why:
 # '''
 # pretrained_modelpath: '/ps/scratch/yfeng/Data/Projects-data/DECA-training/training/DECA_SIGGRAPH/pretrain/model.tar'
-output_dir: "Training/AU_class_consistency_loss_L2_Loss_pytorch_mixed_precision"
+output_dir: "Training/DECA_DJ3_AU_feat_loss_MEFARG_thresholding_VAMOS_L2_Loss_pytorch_mixed_precision"
 pretrained_modelpath: "/home/cine/Documents/DJ/DECA/data/deca_model.tar"
 dataset:
-  batch_size: 8
+  batch_size: 16
   K: 1
 train:
   train_detail: True

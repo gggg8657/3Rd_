@@ -114,3 +114,6 @@ photo_detail: 0.1054, photo_detail_mrf: 0.5731, au_class_consistency_loss: 0.017
 2024-05-19 01:48:28.595 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
 Epoch: 0, Iter: 2200/8327, Time: 2024-05-19-01:48:28 
 photo_detail: 0.1056, photo_detail_mrf: 0.5192, au_class_consistency_loss: 0.0260, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.3247, all_loss: 1.9755, 
+2024-05-19 01:52:08.367 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 2400/8327, Time: 2024-05-19-01:52:08 
+photo_detail: 0.0928, photo_detail_mrf: 0.5490, au_class_consistency_loss: 0.0142, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.3129, all_loss: 1.9690, 

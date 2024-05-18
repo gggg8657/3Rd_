@@ -1,0 +1,111 @@
+2024-05-19 01:54:54.590 | INFO     | decalib.trainer_AU:prepare_data:404 - ---- training data numbers: 
+2024-05-19 01:54:59.200 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 0/8327, Time: 2024-05-19-01:54:59 
+photo_detail: 0.1048, photo_detail_mrf: 0.5725, au_class_consistency_loss: 0.0159, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.3400, all_loss: 2.0332, 
+2024-05-19 01:55:55.014 | INFO     | decalib.trainer_AU:prepare_data:404 - ---- training data numbers: 
+2024-05-19 01:55:59.594 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 0/8327, Time: 2024-05-19-01:55:59 
+photo_detail: 0.1048, photo_detail_mrf: 0.5725, au_class_consistency_loss: 0.0159, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.3400, all_loss: 2.0332, 
+2024-05-19 01:56:22.679 | INFO     | decalib.trainer_AU:prepare_data:404 - ---- training data numbers: 
+2024-05-19 01:56:27.215 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 0/8327, Time: 2024-05-19-01:56:27 
+photo_detail: 0.1048, photo_detail_mrf: 0.5725, au_class_consistency_loss: 0.0159, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.3400, all_loss: 2.0332, 
+2024-05-19 01:57:10.782 | INFO     | decalib.trainer_AU:prepare_data:404 - ---- training data numbers: 
+2024-05-19 01:57:15.327 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 0/8327, Time: 2024-05-19-01:57:15 
+photo_detail: 0.1048, photo_detail_mrf: 0.5725, au_class_consistency_loss: 0.1589, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.3400, all_loss: 2.1763, 
+2024-05-19 01:57:52.013 | INFO     | decalib.trainer_AU:prepare_data:404 - ---- training data numbers: 
+2024-05-19 01:57:56.535 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 0/8327, Time: 2024-05-19-01:57:56 
+photo_detail: 0.1048, photo_detail_mrf: 0.5725, au_class_consistency_loss: 0.7946, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.3400, all_loss: 2.8120, 
+2024-05-19 01:58:22.665 | INFO     | decalib.trainer_AU:prepare_data:404 - ---- training data numbers: 
+2024-05-19 01:58:27.193 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 0/8327, Time: 2024-05-19-01:58:27 
+photo_detail: 0.1048, photo_detail_mrf: 0.5725, au_class_consistency_loss: 0.4768, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.3400, all_loss: 2.4941, 
+2024-05-19 02:02:07.547 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 200/8327, Time: 2024-05-19-02:02:07 
+photo_detail: 0.1056, photo_detail_mrf: 0.5185, au_class_consistency_loss: 0.7462, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.4305, all_loss: 2.8009, 
+2024-05-19 02:05:44.791 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 400/8327, Time: 2024-05-19-02:05:44 
+photo_detail: 0.0928, photo_detail_mrf: 0.5481, au_class_consistency_loss: 0.4157, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.2748, all_loss: 2.3314, 
+2024-05-19 02:09:25.771 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 600/8327, Time: 2024-05-19-02:09:25 
+photo_detail: 0.0903, photo_detail_mrf: 0.6464, au_class_consistency_loss: 0.4652, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.2481, all_loss: 2.4500, 
+2024-05-19 02:13:00.879 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 800/8327, Time: 2024-05-19-02:13:00 
+photo_detail: 0.0936, photo_detail_mrf: 0.5951, au_class_consistency_loss: 0.5155, z_reg: 0.0000, z_diff: 0.0001, z_sym: 1.3751, all_loss: 2.5794, 
+2024-05-19 02:16:37.306 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 1000/8327, Time: 2024-05-19-02:16:37 
+photo_detail: 0.0884, photo_detail_mrf: 0.5734, au_class_consistency_loss: 0.4072, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.3819, all_loss: 2.4510, 
+2024-05-19 02:20:17.793 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 1200/8327, Time: 2024-05-19-02:20:17 
+photo_detail: 0.0987, photo_detail_mrf: 0.5668, au_class_consistency_loss: 0.4781, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.3234, all_loss: 2.4671, 
+2024-05-19 02:23:54.168 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 1400/8327, Time: 2024-05-19-02:23:54 
+photo_detail: 0.0861, photo_detail_mrf: 0.4960, au_class_consistency_loss: 0.3702, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.3496, all_loss: 2.3020, 
+2024-05-19 02:27:33.610 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 1600/8327, Time: 2024-05-19-02:27:33 
+photo_detail: 0.0891, photo_detail_mrf: 0.5472, au_class_consistency_loss: 0.4738, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.3948, all_loss: 2.5049, 
+2024-05-19 02:31:10.189 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 1800/8327, Time: 2024-05-19-02:31:10 
+photo_detail: 0.0960, photo_detail_mrf: 0.5487, au_class_consistency_loss: 0.4550, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.2666, all_loss: 2.3664, 
+2024-05-19 02:34:46.904 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 2000/8327, Time: 2024-05-19-02:34:46 
+photo_detail: 0.0883, photo_detail_mrf: 0.5881, au_class_consistency_loss: 0.3798, z_reg: 0.0000, z_diff: 0.0001, z_sym: 1.3217, all_loss: 2.3779, 
+2024-05-19 02:38:25.687 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 2200/8327, Time: 2024-05-19-02:38:25 
+photo_detail: 0.0996, photo_detail_mrf: 0.5588, au_class_consistency_loss: 0.7886, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.4213, all_loss: 2.8683, 
+2024-05-19 02:42:02.021 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 2400/8327, Time: 2024-05-19-02:42:02 
+photo_detail: 0.1060, photo_detail_mrf: 0.5367, au_class_consistency_loss: 0.3738, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.3486, all_loss: 2.3651, 
+2024-05-19 02:45:39.855 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 2600/8327, Time: 2024-05-19-02:45:39 
+photo_detail: 0.0898, photo_detail_mrf: 0.5196, au_class_consistency_loss: 0.6508, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.4093, all_loss: 2.6695, 
+2024-05-19 02:49:15.279 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 2800/8327, Time: 2024-05-19-02:49:15 
+photo_detail: 0.0825, photo_detail_mrf: 0.5506, au_class_consistency_loss: 0.3863, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.3805, all_loss: 2.3999, 
+2024-05-19 02:52:51.646 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 3000/8327, Time: 2024-05-19-02:52:51 
+photo_detail: 0.0965, photo_detail_mrf: 0.5819, au_class_consistency_loss: 0.5935, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.2614, all_loss: 2.5333, 
+2024-05-19 02:56:30.945 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 3200/8327, Time: 2024-05-19-02:56:30 
+photo_detail: 0.0890, photo_detail_mrf: 0.5942, au_class_consistency_loss: 0.4215, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.4854, all_loss: 2.5902, 
+2024-05-19 03:00:08.324 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 3400/8327, Time: 2024-05-19-03:00:08 
+photo_detail: 0.0796, photo_detail_mrf: 0.5330, au_class_consistency_loss: 0.4304, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.4054, all_loss: 2.4485, 
+2024-05-19 03:03:46.914 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 3600/8327, Time: 2024-05-19-03:03:46 
+photo_detail: 0.0939, photo_detail_mrf: 0.5341, au_class_consistency_loss: 0.4688, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.3960, all_loss: 2.4928, 
+2024-05-19 03:07:24.761 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 3800/8327, Time: 2024-05-19-03:07:24 
+photo_detail: 0.0914, photo_detail_mrf: 0.5208, au_class_consistency_loss: 0.5771, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.3784, all_loss: 2.5677, 
+2024-05-19 03:11:03.094 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 4000/8327, Time: 2024-05-19-03:11:03 
+photo_detail: 0.0934, photo_detail_mrf: 0.5641, au_class_consistency_loss: 0.5170, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.3553, all_loss: 2.5298, 
+2024-05-19 03:14:43.402 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 4200/8327, Time: 2024-05-19-03:14:43 
+photo_detail: 0.0958, photo_detail_mrf: 0.5796, au_class_consistency_loss: 0.2881, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.2007, all_loss: 2.1643, 
+2024-05-19 03:18:19.077 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 4400/8327, Time: 2024-05-19-03:18:19 
+photo_detail: 0.0952, photo_detail_mrf: 0.5406, au_class_consistency_loss: 0.4302, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.4108, all_loss: 2.4769, 
+2024-05-19 03:21:58.278 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 4600/8327, Time: 2024-05-19-03:21:58 
+photo_detail: 0.0919, photo_detail_mrf: 0.5100, au_class_consistency_loss: 0.4185, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.3088, all_loss: 2.3291, 
+2024-05-19 03:25:33.456 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 4800/8327, Time: 2024-05-19-03:25:33 
+photo_detail: 0.0970, photo_detail_mrf: 0.5695, au_class_consistency_loss: 0.4090, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.3781, all_loss: 2.4536, 
+2024-05-19 03:29:10.906 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 5000/8327, Time: 2024-05-19-03:29:10 
+photo_detail: 0.0882, photo_detail_mrf: 0.5442, au_class_consistency_loss: 0.3906, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.2262, all_loss: 2.2492, 
+2024-05-19 03:32:50.506 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 5200/8327, Time: 2024-05-19-03:32:50 
+photo_detail: 0.1201, photo_detail_mrf: 0.5631, au_class_consistency_loss: 0.3132, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.3884, all_loss: 2.3848, 
+2024-05-19 03:36:26.726 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 5400/8327, Time: 2024-05-19-03:36:26 
+photo_detail: 0.0946, photo_detail_mrf: 0.5738, au_class_consistency_loss: 0.3750, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.3904, all_loss: 2.4337, 
+2024-05-19 03:40:04.892 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 5600/8327, Time: 2024-05-19-03:40:04 
+photo_detail: 0.0881, photo_detail_mrf: 0.5613, au_class_consistency_loss: 0.5286, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.2984, all_loss: 2.4765, 
+2024-05-19 03:43:41.821 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
+Epoch: 0, Iter: 5800/8327, Time: 2024-05-19-03:43:41 
+photo_detail: 0.0917, photo_detail_mrf: 0.5362, au_class_consistency_loss: 0.4130, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.3045, all_loss: 2.3454, 

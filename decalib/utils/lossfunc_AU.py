@@ -492,7 +492,7 @@ class AU_Feature_Loss_(nn.Module):
         loss = self.criterion(gen_feats, input_feats)
         # loss = self.criterion(input_feats, gen_feats)
         # loss = loss + self.criterion(target_features[2], input_features[2])
-        return loss
+        return loss * 3e+1
 # class AU_Feature_Loss(nn.Module):
 #     def __init__(self, num_main_classes = 27, num_sub_classes = 14, backbone=get_config().arc):
 #         super(AU_Feature_Loss, self).__init__()
