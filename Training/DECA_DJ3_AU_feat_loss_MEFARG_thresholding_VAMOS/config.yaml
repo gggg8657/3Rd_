@@ -9,7 +9,7 @@
 # why:
 # '''
 # pretrained_modelpath: '/ps/scratch/yfeng/Data/Projects-data/DECA-training/training/DECA_SIGGRAPH/pretrain/model.tar'
-output_dir: "Training/DECA_DJ3rd1"
+output_dir: "Training/DECA_DJ3_AU_feat_loss_MEFARG_thresholding_VAMOS"
 pretrained_modelpath: "/home/cine/Documents/DJ/DECA/data/deca_model.tar"
 dataset:
   batch_size: 8
@@ -19,11 +19,11 @@ train:
   resume: True
   max_epochs: 10
   max_steps: 1000000
-  log_steps: 10
+  log_steps: 200
   vis_steps: 500
   checkpoint_steps: 1000 #1000 model.tar saved
-  val_steps: 500
-  eval_steps: 1000
-dataset:
-  training_data: ['vggface2', 'vox2']
+  # val_steps: 500
+  # eval_steps: 1000
+# dataset:
+  # training_data: ['vggface2', 'vox2']
 # python main_train_deca_release.py --cfg configs/release_version/deca_coarse.yml

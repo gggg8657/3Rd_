@@ -37,7 +37,13 @@ from .utils.rotation_converter import batch_euler2axis
 from .datasets import datasets
 from .utils.config import cfg
 torch.backends.cudnn.benchmark = True
-from .utils import lossfunc
+from .utils import lossfunc_AU as lossfunc
+
+from .models.OpenGraphAU.model.ANFL import AFG
+from .models.OpenGraphAU.utils import load_state_dict
+from .models.OpenGraphAU.utils import *
+from .models.OpenGraphAU.conf import get_config,set_logger,set_outdir,set_env
+
 from .datasets import build_datasets_detail as build_datasets
 # from .datasets import build_datasets
 
@@ -56,8 +62,7 @@ class Trainer(object):
         self.train_detail = self.cfg.train.train_detail
 
         # deca model
-        self.deca = model.cuda()
-        # self.deca = to(self.device)
+        self.deca = model.to(self.device)
         self.configure_optimizers()
         self.load_checkpoint()
 
@@ -65,8 +70,9 @@ class Trainer(object):
         # # initialize loss   
         if self.train_detail:     
             self.mrf_loss = lossfunc.IDMRFLoss()
-            # self.perceptual_loss = lossfunc.PerceptualLoss()
-            # self.vgg16_loss = lossfunc.VGGLoss()
+            self.au_feature_loss=lossfunc.AU_Feature_Loss()
+            # self.vggface2_loss = lossfunc.VGGFace2Loss(pretrained_model='/home/cine/DJ/DECA/data/resnet50_ft_weight.pkl')
+            # self.per_loss =  lossfunc.PerceptualLoss() 
             self.face_attr_mask = util.load_local_mask(image_size=self.cfg.model.uv_size, mode='bbx')
         else:
             self.id_loss = lossfunc.VGGFace2Loss(pretrained_model=self.cfg.model.fr_model_path)      
@@ -89,6 +95,7 @@ class Trainer(object):
                                     lr=self.cfg.train.lr,
                                     amsgrad=False)
     def load_checkpoint(self):
+        self.auconf = get_config()
         model_dict = self.deca.model_dict()
         # resume training, including model weight, opt, steps
         # import ipdb; ipdb.set_trace()
@@ -110,6 +117,9 @@ class Trainer(object):
         else:
             logger.info('model path not found, start training from scratch')
             self.global_step = 0
+        self.AU_net = AFG(num_main_classes=self.auconf.num_main_classes, num_sub_classes=self.auconf.num_sub_classes, backbone=self.auconf.arc).to(self.device)
+        self.AU_net = load_state_dict(self.AU_net, self.auconf.resume).to(self.device)
+        self.AU_net.eval()
 
     def training_step(self, batch, batch_nb, training_type='coarse'):
         self.deca.train()
@@ -231,9 +241,9 @@ class Trainer(object):
             albedo = self.deca.flametex(texcode)
 
             #------ rendering
-            ops = self.deca.render(verts, trans_verts, albedo, lightcode) 
+            ops = self.deca.render(verts, trans_verts, albedo, lightcode)
             # mask
-            mask_face_eye = F.grid_sample(self.deca.uv_face_eye_mask.expand(batch_size,-1,-1,-1), ops['grid'].detach(), align_corners=False).to('cuda')
+            mask_face_eye = F.grid_sample(self.deca.uv_face_eye_mask.expand(batch_size,-1,-1,-1), ops['grid'].detach(), align_corners=False)
             # images
             predicted_images = ops['images']*mask_face_eye*ops['alpha_images']
 
@@ -245,7 +255,7 @@ class Trainer(object):
             uv_shading = self.deca.render.add_SHlight(uv_detail_normals, lightcode.detach())
             uv_texture = albedo.detach()*uv_shading
             predicted_detail_images = F.grid_sample(uv_texture, ops['grid'].detach(), align_corners=False)
-
+            
             #--- extract texture
             uv_pverts = self.deca.render.world2uv(trans_verts).detach()
             uv_gt = F.grid_sample(torch.cat([images, masks], dim=1), uv_pverts.permute(0,2,3,1)[:,:,:,:2], mode='bilinear', align_corners=False)
@@ -274,26 +284,35 @@ class Trainer(object):
             
             losses['photo_detail'] = (uv_texture_patch*uv_vis_mask_patch - uv_texture_gt_patch*uv_vis_mask_patch).abs().mean()*self.cfg.loss.photo_D
             
+
+           
+
             #old mrf
             # masks = masks*mask_face_eye*ops['alpha_images']
             # losses['photo_detail_mrf'] = self.mrf_loss(uv_texture_patch*uv_vis_mask_patch, masks*uv_texture_gt_patch*uv_vis_mask_patch)*0.1
-            #losses['L2_relu_loss'] = self.mrf_loss(uv_texture_patch*uv_vis_mask_patch, uv_texture_gt_patch*uv_vis_mask_patch)*self.cfg.loss.photo_D*self.cfg.loss.mrf
-            
+            # losses['perceptual_detail'] = self.per_loss(predicted_detail_images, images)
             losses['photo_detail_mrf'] = self.mrf_loss(uv_texture_patch*uv_vis_mask_patch, uv_texture_gt_patch*uv_vis_mask_patch)*self.cfg.loss.photo_D*self.cfg.loss.mrf
-
-            # losses['perceptual_detail'] = self.perceptual_loss(uv_texture_patch*uv_vis_mask_patch, uv_texture_gt_patch*uv_vis_mask_patch)*self.cfg.loss.photo_D
-            # losses['vgg16_loss'] = self.vgg16_loss(uv_texture_patch*uv_vis_mask_patch, uv_texture_gt_patch*uv_vis_mask_patch)*self.cfg.loss.photo_D*self.cfg.loss.mrf
-
+            # losses['au_feature_loss'] = self.au_feature_loss(uv_texture_patch*uv_vis_mask_patch, uv_texture_gt_patch*uv_vis_mask_patch) # ver1
+            losses['au_feature_loss'], losses['chin_loss'], losses['dimp_loss']= self.au_feature_loss(images, predicted_detail_images) # ver 2
+            # losses['vggface2_detail'] = self.vggface2_loss(predicted_detail_images, images)*self.cfg.loss.photo_D
+            
             losses['z_reg'] = torch.mean(uv_z.abs())*self.cfg.loss.reg_z
             losses['z_diff'] = lossfunc.shading_smooth_loss(uv_shading)*self.cfg.loss.reg_diff
             if self.cfg.loss.reg_sym > 0.:
                 nonvis_mask = (1 - util.binary_erosion(uv_vis_mask))
                 losses['z_sym'] = (nonvis_mask*(uv_z - torch.flip(uv_z, [-1]).detach()).abs()).sum()*self.cfg.loss.reg_sym
+            # img_afn = self.AU_net(images, use_gnn=True)[2]
+            # # img_afn = torch.round(img_afn*10, decimals=0)
+            # rend_afn = self.AU_net(predicted_detail_images, use_gnn=True)[2]
+            # # rend_afn = torch.round(rend_afn*10, decimals=0)
+            # losses['AU_feature'] = F.mse_loss(img_afn,rend_afn)*50
+            #original opdict location
             opdict = {
                 'verts': verts,
                 'trans_verts': trans_verts,
                 'landmarks2d': landmarks2d,
                 # 'mp_landmark': mp_landmark,
+                # 'predicted_deatil_shape' : 
                 'predicted_images': predicted_images,
                 'predicted_detail_images': predicted_detail_images,
                 'images': images,
@@ -324,61 +343,61 @@ class Trainer(object):
     #     self.writer.add_image('val_images', (grid_image/255.).astype(np.float32).transpose(2,0,1), self.global_step)
     #     self.deca.train()
 
-    # def evaluate(self):
-        ''' NOW validation 
-        '''
-        os.makedirs(os.path.join(self.cfg.output_dir, 'NOW_validation'), exist_ok=True)
-        savefolder = os.path.join(self.cfg.output_dir, 'NOW_validation', f'step_{self.global_step:08}') 
-        os.makedirs(savefolder, exist_ok=True)
-        self.deca.eval()
-        # run now validation images
-        from .datasets.now import NoWDataset
-        dataset = NoWDataset(scale=(self.cfg.dataset.scale_min + self.cfg.dataset.scale_max)/2)
-        dataloader = DataLoader(dataset, batch_size=8, shuffle=False,
-                            num_workers=8,
-                            pin_memory=True,
-                            drop_last=False)
-        faces = self.deca.flame.faces_tensor.cpu().numpy()
-        for i, batch in enumerate(tqdm(dataloader, desc='now evaluation ')):
-            images = batch['image_224'].to(self.device)
-            imagename = batch['imagename']
-            with torch.no_grad():
-                codedict = self.deca.encode(images)
-                _, visdict = self.deca.decode(codedict)
-                codedict['exp'][:] = 0.
-                codedict['pose'][:] = 0.
-                opdict, _ = self.deca.decode(codedict)
-            #-- save results for evaluation
-            verts = opdict['verts'].cpu().numpy()
-            landmark_51 = opdict['landmarks3d_world'][:, 17:]
-            landmark_7 = landmark_51[:,[19, 22, 25, 28, 16, 31, 37]]
-            landmark_7 = landmark_7.cpu().numpy()
-            for k in range(images.shape[0]):
-                os.makedirs(os.path.join(savefolder, imagename[k]), exist_ok=True)
-                # save mesh
-                util.write_obj(os.path.join(savefolder, f'{imagename[k]}.obj'), vertices=verts[k], faces=faces)
-                # save 7 landmarks for alignment
-                np.save(os.path.join(savefolder, f'{imagename[k]}.npy'), landmark_7[k])
-                for vis_name in visdict.keys(): #['inputs', 'landmarks2d', 'shape_images']:
-                    if vis_name not in visdict.keys():
-                        continue
-                    # import ipdb; ipdb.set_trace()
-                    image = util.tensor2image(visdict[vis_name][k])
-                    name = imagename[k].split('/')[-1]
-                    # print(os.path.join(savefolder, imagename[k], name + '_' + vis_name +'.jpg'))
-                    cv2.imwrite(os.path.join(savefolder, imagename[k], name + '_' + vis_name +'.jpg'), image)
-            # visualize results to check
-            util.visualize_grid(visdict, os.path.join(savefolder, f'{i}.jpg'))
+    # # def evaluate(self):
+    #     ''' NOW validation 
+    #     '''
+    #     os.makedirs(os.path.join(self.cfg.output_dir, 'NOW_validation'), exist_ok=True)
+    #     savefolder = os.path.join(self.cfg.output_dir, 'NOW_validation', f'step_{self.global_step:08}') 
+    #     os.makedirs(savefolder, exist_ok=True)
+    #     self.deca.eval()
+    #     # run now validation images
+    #     from .datasets.now import NoWDataset
+    #     dataset = NoWDataset(scale=(self.cfg.dataset.scale_min + self.cfg.dataset.scale_max)/2)
+    #     dataloader = DataLoader(dataset, batch_size=8, shuffle=False,
+    #                         num_workers=8,
+    #                         pin_memory=True,
+    #                         drop_last=False)
+    #     faces = self.deca.flame.faces_tensor.cpu().numpy()
+    #     for i, batch in enumerate(tqdm(dataloader, desc='now evaluation ')):
+    #         images = batch['image_224'].to(self.device)
+    #         imagename = batch['imagename']
+    #         with torch.no_grad():
+    #             codedict = self.deca.encode(images)
+    #             _, visdict = self.deca.decode(codedict)
+    #             codedict['exp'][:] = 0.
+    #             codedict['pose'][:] = 0.
+    #             opdict, _ = self.deca.decode(codedict)
+    #         #-- save results for evaluation
+    #         verts = opdict['verts'].cpu().numpy()
+    #         landmark_51 = opdict['landmarks3d_world'][:, 17:]
+    #         landmark_7 = landmark_51[:,[19, 22, 25, 28, 16, 31, 37]]
+    #         landmark_7 = landmark_7.cpu().numpy()
+    #         for k in range(images.shape[0]):
+    #             os.makedirs(os.path.join(savefolder, imagename[k]), exist_ok=True)
+    #             # save mesh
+    #             util.write_obj(os.path.join(savefolder, f'{imagename[k]}.obj'), vertices=verts[k], faces=faces)
+    #             # save 7 landmarks for alignment
+    #             np.save(os.path.join(savefolder, f'{imagename[k]}.npy'), landmark_7[k])
+    #             for vis_name in visdict.keys(): #['inputs', 'landmarks2d', 'shape_images']:
+    #                 if vis_name not in visdict.keys():
+    #                     continue
+    #                 # import ipdb; ipdb.set_trace()
+    #                 image = util.tensor2image(visdict[vis_name][k])
+    #                 name = imagename[k].split('/')[-1]
+    #                 # print(os.path.join(savefolder, imagename[k], name + '_' + vis_name +'.jpg'))
+    #                 cv2.imwrite(os.path.join(savefolder, imagename[k], name + '_' + vis_name +'.jpg'), image)
+    #         # visualize results to check
+    #         util.visualize_grid(visdict, os.path.join(savefolder, f'{i}.jpg'))
 
-        ## then please run main.py in https://github.com/soubhiksanyal/now_evaluation, it will take around 30min to get the metric results
-        self.deca.train()
+    #     ## then please run main.py in https://github.com/soubhiksanyal/now_evaluation, it will take around 30min to get the metric results
+    #     self.deca.train()
 
     def prepare_data(self):
         self.train_dataset = build_datasets.build_train(self.cfg.dataset)
         # self.val_dataset = build_datasets.build_val(self.cfg.dataset)
         logger.info('---- training data numbers: ', len(self.train_dataset))
 
-        self.train_dataloader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True,
+        self.train_dataloader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=False,
                             num_workers=self.cfg.dataset.num_workers,
                             pin_memory=True,
                             drop_last=True)

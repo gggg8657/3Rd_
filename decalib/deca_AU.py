@@ -31,12 +31,16 @@ from .models.decoders import Generator
 from .utils import util
 from .utils.rotation_converter import batch_euler2axis
 from .utils.tensor_cropper import transform_points
-from .datasets import datasets
+from .datasets import build_datasets_detail
 from .utils.config import cfg
+
+from .models.OpenGraphAU.model.ANFL import AFG
+from .models.encoders_au import AUEncoder
+from .models.OpenGraphAU.utils import load_state_dict
+from .models.OpenGraphAU.utils import *
+from .models.OpenGraphAU.conf import get_config,set_logger,set_outdir,set_env
 torch.backends.cudnn.benchmark = True
 
-import torch.distributed as dist
-from torch.nn.parallel import DistributedDataParallel as DDP
 class DECA(nn.Module):
     def __init__(self, config=None, device='cuda'):
         super(DECA, self).__init__()
@@ -48,38 +52,25 @@ class DECA(nn.Module):
         self.image_size = self.cfg.dataset.image_size
         self.uv_size = self.cfg.model.uv_size
 
+
+
         self._create_model(self.cfg.model)
         self._setup_renderer(self.cfg.model)
 
     def _setup_renderer(self, model_cfg):
         set_rasterizer(self.cfg.rasterizer_type)
-        self.render = SRenderY(self.image_size, obj_filename=model_cfg.topology_path, uv_size=model_cfg.uv_size, rasterizer_type=self.cfg.rasterizer_type).to(self.device) #origin
-        # _render = SRenderY(self.image_size, obj_filename=model_cfg.topology_path, uv_size=model_cfg.uv_size, rasterizer_type=self.cfg.rasterizer_type).cuda()
-        # self.render = nn.DataParallel(_render).to(self.device)
-
-        # dist.init_process_group(backend='nccl')
-        # _render = SRenderY(self.image_size, obj_filename=model_cfg.topology_path, uv_size=model_cfg.uv_size, rasterizer_type=self.cfg.rasterizer_type).cuda()
-        # self.render = DDP(_render, device_ids=[0, 1], output_device=0)
-
+        self.render = SRenderY(self.image_size, obj_filename=model_cfg.topology_path, uv_size=model_cfg.uv_size, rasterizer_type=self.cfg.rasterizer_type).to(self.device)
         # face mask for rendering details
         mask = imread(model_cfg.face_eye_mask_path).astype(np.float32)/255.; mask = torch.from_numpy(mask[:,:,0])[None,None,:,:].contiguous()
-        self.uv_face_eye_mask = F.interpolate(mask, [model_cfg.uv_size, model_cfg.uv_size]).to(self.device)#origin
-        # _uv_face_eye_mask = F.interpolate(mask, [model_cfg.uv_size, model_cfg.uv_size]).cuda()
-        # self.uv_face_eye_mask = nn.DataParallel(_uv_face_eye_mask).to(self.device)
+        self.uv_face_eye_mask = F.interpolate(mask, [model_cfg.uv_size, model_cfg.uv_size]).to(self.device)
         mask = imread(model_cfg.face_mask_path).astype(np.float32)/255.; mask = torch.from_numpy(mask[:,:,0])[None,None,:,:].contiguous()
-        self.uv_face_mask = F.interpolate(mask, [model_cfg.uv_size, model_cfg.uv_size]).to(self.device) #origin
-        # _uv_face_mask = F.interpolate(mask, [model_cfg.uv_size, model_cfg.uv_size]).cuda()
-        # self.uv_face_mask = nn.DataParallel(_uv_face_mask).to(self.device)
+        self.uv_face_mask = F.interpolate(mask, [model_cfg.uv_size, model_cfg.uv_size]).to(self.device)
         # displacement correction
         fixed_dis = np.load(model_cfg.fixed_displacement_path)
-        self.fixed_uv_dis = torch.tensor(fixed_dis).float().to(self.device) #origin
-        # _fixed_uv_dis = torch.tensor(fixed_dis).float().cuda()
-        # self.fixed_uv_dis = nn.DataParallel(_fixed_uv_dis).to(self.device)
+        self.fixed_uv_dis = torch.tensor(fixed_dis).float().to(self.device)
         # mean texture
         mean_texture = imread(model_cfg.mean_tex_path).astype(np.float32)/255.; mean_texture = torch.from_numpy(mean_texture.transpose(2,0,1))[None,:,:,:].contiguous()
-        self.mean_texture = F.interpolate(mean_texture, [model_cfg.uv_size, model_cfg.uv_size]).to(self.device) #origin
-        # _mean_texture= F.interpolate(mean_texture, [model_cfg.uv_size, model_cfg.uv_size]).cuda()
-        # self.mean_texture = nn.DataParallel(_mean_texture).to(self.device)
+        self.mean_texture = F.interpolate(mean_texture, [model_cfg.uv_size, model_cfg.uv_size]).to(self.device)
         # dense mesh template, for save detail mesh
         self.dense_template = np.load(model_cfg.dense_template_path, allow_pickle=True, encoding='latin1').item()
 
@@ -88,30 +79,28 @@ class DECA(nn.Module):
         self.n_param = model_cfg.n_shape+model_cfg.n_tex+model_cfg.n_exp+model_cfg.n_pose+model_cfg.n_cam+model_cfg.n_light
         self.n_detail = model_cfg.n_detail
         self.n_cond = model_cfg.n_exp + 3 # exp + jaw pose
+        self.n_monem = model_cfg.n_exp + 3 # + 27 # exp + jaw pose
         self.num_list = [model_cfg.n_shape, model_cfg.n_tex, model_cfg.n_exp, model_cfg.n_pose, model_cfg.n_cam, model_cfg.n_light]
         self.param_dict = {i:model_cfg.get('n_' + i) for i in model_cfg.param_list}
 
-        # # encoders
-        # _net = ResnetEncoder(outsize=self.n_param).cuda() 
-        # self.E_flame = nn.DataParallel(_net, output_device='cuda:0').to(self.device)    
-        # _Dnet = ResnetEncoder(outsize=self.n_detail).cuda()
-        # self.E_detail = nn.DataParallel(_Dnet, output_device='cuda:0').to(self.device)
-        # # decoders
-        # _Fnet = FLAME(model_cfg).cuda()
-        # self.flame = nn.DataParallel(_Fnet, output_device='cuda:0').to(self.device)
+        # au config
+        self.auconf = get_config()
+        self.auconf.evaluate = True
+        self.auconf.gpu_ids = os.environ["CUDA_VISIBLE_DEVICES"]
+        set_env(self.auconf)
 
         # encoders
         self.E_flame = ResnetEncoder(outsize=self.n_param).to(self.device) 
         self.E_detail = ResnetEncoder(outsize=self.n_detail).to(self.device)
+
+        self.AUNet = AFG(num_main_classes=self.auconf.num_main_classes, num_sub_classes=self.auconf.num_sub_classes, backbone=self.auconf.arc).to(self.device)
+        self.AU_Encoder = AUEncoder().to(self.device)
+        self.AUNet = load_state_dict(self.AUNet, self.auconf.resume).to(self.device)
+
         # decoders
         self.flame = FLAME(model_cfg).to(self.device)
-        
         if model_cfg.use_tex:
-            # _flametex = FLAMETex(model_cfg).cuda()
-            # self.flametex = nn.DataParallel(_flametex, output_device='cuda:0').to(self.device)
             self.flametex = FLAMETex(model_cfg).to(self.device)
-        # _D_detail = Generator(latent_dim=self.n_detail+self.n_cond, out_channels=1, out_scale=model_cfg.max_z, sample_mode = 'bilinear').cuda()
-        # self.D_detail = nn.DataParallel(_D_detail, output_device='cuda:0').to(self.device)
         self.D_detail = Generator(latent_dim=self.n_detail+self.n_cond, out_channels=1, out_scale=model_cfg.max_z, sample_mode = 'bilinear').to(self.device)
         # resume model
         model_path = self.cfg.pretrained_modelpath
@@ -119,6 +108,7 @@ class DECA(nn.Module):
             print(f'trained model found. load {model_path}')
             checkpoint = torch.load(model_path)
             self.checkpoint = checkpoint
+            # util.copy_state_dict(self.AU_Encoder.state_dict(), checkpoint['AU_Encoder'])
             util.copy_state_dict(self.E_flame.state_dict(), checkpoint['E_flame'])
             util.copy_state_dict(self.E_detail.state_dict(), checkpoint['E_detail'])
             util.copy_state_dict(self.D_detail.state_dict(), checkpoint['D_detail'])
@@ -127,8 +117,10 @@ class DECA(nn.Module):
             # exit()
         # eval mode
         self.E_flame.eval()
-        self.E_detail.eval()
-        self.D_detail.eval()
+        self.E_detail.train()
+        self.D_detail.train()
+        self.AUNet.train()
+        self.AU_Encoder.train()
 
     def decompose_code(self, code, num_dict):
         ''' Convert a flattened parameter vector to a dictionary of parameters
@@ -174,9 +166,11 @@ class DECA(nn.Module):
                 parameters = self.E_flame(images)
         else:
             parameters = self.E_flame(images)
-        codedict = self.decompose_code(parameters, self.param_dict)
-        codedict['images'] = images
+        codedict = self.decompose_code(parameters, self.param_dict) # ... parameters are loaded into codedict
+        codedict['images'] = images #codedict images as images
         if use_detail:
+            x, afn, main_cl = self.AUNet(images, use_gnn=True) # afn : [16,27,512] #codedict ['exp'] shape is [16,50]
+            codedict['afn'] = self.AU_Encoder(afn)
             detailcode = self.E_detail(images)
             codedict['detail'] = detailcode
         if self.cfg.model.jaw_type == 'euler':
@@ -340,18 +334,19 @@ class DECA(nn.Module):
                         colors = dense_colors,
                         inverse_face_order=True)
     
-    def run(self, imagepath, iscrop=True):
-        ''' An api for running deca given an image path
-        '''
-        testdata = datasets.TestData(imagepath)
-        images = testdata[0]['image'].to(self.device)[None,...]
-        codedict = self.encode(images)
-        opdict, visdict = self.decode(codedict)
-        return codedict, opdict, visdict
+    # def run(self, imagepath, iscrop=True):
+    #     ''' An api for running deca given an image path
+    #     '''
+    #     testdata = datasets.TestData(imagepath)
+    #     images = testdata[0]['image'].to(self.device)[None,...]
+    #     codedict = self.encode(images)
+    #     opdict, visdict = self.decode(codedict)
+    #     return codedict, opdict, visdict
 
     def model_dict(self):
         return {
             'E_flame': self.E_flame.state_dict(),
             'E_detail': self.E_detail.state_dict(),
-            'D_detail': self.D_detail.state_dict()
+            # 'D_detail': self.D_detail.state_dict(),
+            'AU_Encoder':self.AU_Encoder.state_dict()
         }

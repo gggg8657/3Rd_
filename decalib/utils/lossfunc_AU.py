@@ -9,6 +9,7 @@ import cv2
 import torchfile
 from torch.autograd import Variable
 
+
 from . import util
 
 
@@ -369,7 +370,260 @@ class VGG19FeatLayer(nn.Module):
             out[name] = x
         # print([x for x in out])
         return out
+# def AU_lossL
+from torchvision.models import vgg16
+class PerceptualLoss(nn.Module):
+    def __init__(self):
+        super(PerceptualLoss, self).__init__()
+        self.vgg = vgg16(pretrained=True).features[:9].cuda().eval()
+        self.criterion = nn.MSELoss()
 
+    def forward(self, input_image, target_image):
+        input_features = self.vgg(input_image)
+        target_features = self.vgg(target_image)
+        loss = self.criterion(input_features, target_features)
+        return loss
+
+from ..models.OpenGraphAU.model.MEFL import MEFARG
+from ..models.OpenGraphAU.utils import load_state_dict as AU_load_state_dict
+from ..models.OpenGraphAU.utils import *
+from ..models.OpenGraphAU.conf import get_config,set_logger,set_outdir,set_env
+import os
+from torchvision.transforms.functional import to_pil_image
+class AU_Feature_Loss(nn.Module):
+    def __init__(self, num_main_classes = 27, num_sub_classes = 14, backbone=get_config().arc):
+        super(AU_Feature_Loss, self).__init__()
+        self.auconfig = get_config()
+        self.auconf = get_config()
+        self.auconf.evaluate = True
+        self.auconf.gpu_ids = os.environ["CUDA_VISIBLE_DEVICES"]
+        set_env(self.auconf)
+        
+        self.aufeat = MEFARG(num_main_classes, num_sub_classes, backbone).to('cuda')
+        self.aufeat = AU_load_state_dict(self.aufeat, self.auconfig.resume).to('cuda')
+        self.aufeat.eval()
+        self.criterion = nn.MSELoss()
+
+    '''
+    for i in range(BatchSize):
+            tar_feat_i = tar_normalized[i:i+1, :, :, :]
+            gen_feat_i = gen_normalized[i:i+1, :, :, :]
+            patches_OIHW = self.patch_extraction(tar_feat_i)
+
+            cosine_dist_i = F.conv2d(gen_feat_i, patches_OIHW)
+            cosine_dist_l.append(cosine_dist_i)
+        cosine_dist = torch.cat(cosine_dist_l, dim=0)
+        cosine_dist_zero_2_one = - (cosine_dist - 1) / 2
+        relative_dist = self.compute_relative_distances(cosine_dist_zero_2_one)
+        rela_dist = self.exp_norm_relative_dist(relative_dist)
+        dims_div_mrf = rela_dist.size()
+        k_max_nc = torch.max(rela_dist.view(dims_div_mrf[0], dims_div_mrf[1], -1), dim=2)[0]
+        div_mrf = torch.mean(k_max_nc, dim=1)
+        div_mrf_sum = -torch.log(div_mrf)
+        div_mrf_sum = torch.sum(div_mrf_sum)
+    '''
+    def map_threshold(self, value: float):
+        # if value <= 0.2:
+        #     return 2
+        # elif value <= 0.4:
+        #     return 4
+        # elif value <= 0.6:
+        #     return 6
+        # elif value <= 0.8:
+        #     return 8
+        # else:
+        #     return 10
+        threshold = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+        for i in range(len(threshold)):
+            if value < threshold[i]:
+                return threshold[i]*10
+        
+    def forward(self, input_image, target_image):
+        img_transform = image_eval()
+        loss_ = 0
+        src_feature_l = []
+        tar_feature_l = []
+        src_chin_weighted_l = []
+        tar_chin_weighted_l = []
+        src_dimp_weighted_l = []
+        tar_dimp_weighted_l = []
+
+        BatchSize = target_image.size(0)
+        for i in range(8):    
+            input_src = input_image[i]
+            target_src = target_image[i]
+            # input image num is 16 , target image num is 16 
+            input_image_ = img_transform(to_pil_image(input_src)).unsqueeze(0)
+            input_features = self.aufeat(input_image_.cuda())
+            target_image_ = img_transform(to_pil_image(target_src)).unsqueeze(0)        
+            target_features = self.aufeat(target_image_.cuda())
+            
+            src_chin_score = input_features[1][0][14] #AU 17 chin raiser
+            # src_chin_score = src_chin_score * self.map_threshold(src_chin_score)
+            tar_chin_score = target_features[1][0][14] 
+            # tar_chin_score = tar_chin_score * self.map_threshold(tar_chin_score)
+            src_dimp_score = input_features[1][0][11] #AU 14 dimpler
+            # src_dimp_score = src_dimp_score * self.map_threshold(src_dimp_score)
+            tar_dimp_score = target_features[1][0][11]
+            # tar_dimp_score = tar_dimp_score * self.map_threshold(tar_dimp_score)
+            
+            src_chin_weighted_l.append(src_chin_score)
+            tar_chin_weighted_l.append(tar_chin_score)
+            src_dimp_weighted_l.append(src_dimp_score)
+            tar_dimp_weighted_l.append(tar_dimp_score)
+            
+            src_feature_l.append(input_features[1])
+            tar_feature_l.append(target_features[1])
+        for i in range(8):
+            chin_loss = self.criterion(src_chin_weighted_l[i], tar_chin_weighted_l[i])
+            dimp_loss = self.criterion(src_dimp_weighted_l[i], tar_dimp_weighted_l[i])
+            loss = self.criterion(src_feature_l[i], tar_feature_l[i])
+            loss_ = loss_+loss 
+        return loss_, chin_loss*2.0, dimp_loss*10.0
+
+# class AU_Feature_Loss(nn.Module):
+#     def __init__(self, num_main_classes = 27, num_sub_classes = 14, backbone=get_config().arc):
+#         super(AU_Feature_Loss, self).__init__()
+#         self.auconfig = get_config()
+#         self.auconf = get_config()
+#         self.auconf.evaluate = True
+#         self.auconf.gpu_ids = os.environ["CUDA_VISIBLE_DEVICES"]
+#         set_env(self.auconf)
+        
+#         self.aufeat = MEFARG(num_main_classes, num_sub_classes, backbone).to('cuda')
+#         self.aufeat = AU_load_state_dict(self.aufeat, self.auconfig.resume).to('cuda')
+#         self.aufeat.eval()
+#         self.criterion = nn.MSELoss()
+
+#     '''
+#     for i in range(BatchSize):
+#             tar_feat_i = tar_normalized[i:i+1, :, :, :]
+#             gen_feat_i = gen_normalized[i:i+1, :, :, :]
+#             patches_OIHW = self.patch_extraction(tar_feat_i)
+
+#             cosine_dist_i = F.conv2d(gen_feat_i, patches_OIHW)
+#             cosine_dist_l.append(cosine_dist_i)
+#         cosine_dist = torch.cat(cosine_dist_l, dim=0)
+#         cosine_dist_zero_2_one = - (cosine_dist - 1) / 2
+#         relative_dist = self.compute_relative_distances(cosine_dist_zero_2_one)
+#         rela_dist = self.exp_norm_relative_dist(relative_dist)
+#         dims_div_mrf = rela_dist.size()
+#         k_max_nc = torch.max(rela_dist.view(dims_div_mrf[0], dims_div_mrf[1], -1), dim=2)[0]
+#         div_mrf = torch.mean(k_max_nc, dim=1)
+#         div_mrf_sum = -torch.log(div_mrf)
+#         div_mrf_sum = torch.sum(div_mrf_sum)
+#     '''
+
+#     def forward(self, input_image, target_image):
+#         img_transform = image_eval()
+#         loss_ = 0
+#         src_feature_l = []
+#         tar_feature_l = []
+#         BatchSize = target_image.size(0)
+#         for i in range(8):    
+#             input_src = input_image[i]
+#             target_src = target_image[i]
+#             # input image num is 16 , target image num is 16 
+#             input_image_ = img_transform(to_pil_image(input_src)).unsqueeze(0)
+#             input_features = self.aufeat(input_image_.cuda())
+#             target_image_ = img_transform(to_pil_image(target_src)).unsqueeze(0)        
+#             target_features = self.aufeat(target_image_.cuda())
+#             input_features = input_features[1][0][14] #AU 17 dimpler
+#             target_features = target_features[1][0][14]
+#             # src_feature_l.append(input_features[1])
+#             # tar_feature_l.append(target_features[1])
+#         for i in range(8):
+#             loss = self.criterion(src_feature_l[i], tar_feature_l[i])
+#             loss_ = loss_+loss
+#         return loss_
+
+# class IDMRFLoss(nn.Module):
+#     def __init__(self, featlayer=VGG19FeatLayer):
+#         super(IDMRFLoss, self).__init__()
+#         self.featlayer = featlayer()
+#         self.feat_style_layers = {'relu2_2': 1.0, }
+#         self.feat_content_layers = {'relu4_2': 1.0}
+#         self.bias = 1.0
+#         self.nn_stretch_sigma = 0.5
+#         self.lambda_style = 1.0
+#         self.lambda_content = 1.0
+
+#     def sum_normalize(self, featmaps):
+#         reduce_sum = torch.sum(featmaps, dim=1, keepdim=True)
+#         return featmaps / reduce_sum
+
+#     def patch_extraction(self, featmaps):
+#         patch_size = 1
+#         patch_stride = 1
+#         patches_as_depth_vectors = featmaps.unfold(2, patch_size, patch_stride).unfold(3, patch_size, patch_stride)
+#         self.patches_OIHW = patches_as_depth_vectors.permute(0, 2, 3, 1, 4, 5)
+#         dims = self.patches_OIHW.size()
+#         self.patches_OIHW = self.patches_OIHW.view(-1, dims[3], dims[4], dims[5])
+#         return self.patches_OIHW
+
+#     def compute_relative_distances(self, cdist):
+#         epsilon = 1e-5
+#         div = torch.min(cdist, dim=1, keepdim=True)[0]
+#         relative_dist = cdist / (div + epsilon)
+#         return relative_dist
+
+#     def exp_norm_relative_dist(self, relative_dist):
+#         scaled_dist = relative_dist
+#         scaled_dist = torch.clamp(scaled_dist, max=8.872e+01)
+#         dist_before_norm = torch.exp((self.bias - scaled_dist)/self.nn_stretch_sigma)
+#         self.cs_NCHW = self.sum_normalize(dist_before_norm)
+#         return self.cs_NCHW
+
+#     def mrf_loss(self, gen, tar):
+#         meanT = torch.mean(tar, 1, keepdim=True)
+#         gen_feats, tar_feats = gen - meanT, tar - meanT
+
+#         gen_feats_norm = torch.norm(gen_feats, p=2, dim=1, keepdim=True)
+#         tar_feats_norm = torch.norm(tar_feats, p=2, dim=1, keepdim=True)
+
+#         gen_normalized = gen_feats / (gen_feats_norm + 1e-8)
+#         tar_normalized = tar_feats / (tar_feats_norm + 1e-8)
+#         # if torch.isnan(gen_normalized).any() or torch.isinf(gen_normalized).any() is True :
+#         #     print("checking for NaNs or Infs : ")
+#         #     print(torch.isnan(gen_normalized).any(), torch.isinf(gen_normalized).any())
+#         cosine_dist_l = []
+#         BatchSize = tar.size(0)
+
+#         for i in range(BatchSize):
+#             tar_feat_i = tar_normalized[i:i+1, :, :, :]
+#             gen_feat_i = gen_normalized[i:i+1, :, :, :]
+#             patches_OIHW = self.patch_extraction(tar_feat_i)
+
+#             cosine_dist_i = F.conv2d(gen_feat_i, patches_OIHW)
+#             cosine_dist_l.append(cosine_dist_i)
+#         cosine_dist = torch.cat(cosine_dist_l, dim=0)
+#         cosine_dist_zero_2_one = - (cosine_dist - 1) / 2
+#         relative_dist = self.compute_relative_distances(cosine_dist_zero_2_one)
+#         rela_dist = self.exp_norm_relative_dist(relative_dist)
+#         dims_div_mrf = rela_dist.size()
+#         k_max_nc = torch.max(rela_dist.view(dims_div_mrf[0], dims_div_mrf[1], -1), dim=2)[0]
+#         div_mrf = torch.mean(k_max_nc, dim=1)
+#         div_mrf_sum = -torch.log(div_mrf)
+#         div_mrf_sum = torch.sum(div_mrf_sum)
+#         return div_mrf_sum
+
+#     def forward(self, gen, tar):
+#         ## gen: [bz,3,h,w] rgb [0,1]
+#         gen_vgg_feats = self.featlayer(gen)
+#         tar_vgg_feats = self.featlayer(tar)
+#         style_loss_list = [self.feat_style_layers[layer] * self.mrf_loss(gen_vgg_feats[layer], tar_vgg_feats[layer]) for layer in self.feat_style_layers]
+#         self.style_loss = reduce(lambda x, y: x+y, style_loss_list) * self.lambda_style
+
+#         content_loss_list = [self.feat_content_layers[layer] * self.mrf_loss(gen_vgg_feats[layer], tar_vgg_feats[layer]) for layer in self.feat_content_layers]
+#         self.content_loss = reduce(lambda x, y: x+y, content_loss_list) * self.lambda_content
+
+#         return self.style_loss + self.content_loss
+
+#         # loss = 0
+#         # for key in self.feat_style_layers.keys():
+#         #     loss += torch.mean((gen_vgg_feats[key] - tar_vgg_feats[key])**2)
+#         # return loss
+#20240508
 class IDMRFLoss(nn.Module):
     def __init__(self, featlayer=VGG19FeatLayer):
         super(IDMRFLoss, self).__init__()
@@ -402,6 +656,7 @@ class IDMRFLoss(nn.Module):
 
     def exp_norm_relative_dist(self, relative_dist):
         scaled_dist = relative_dist
+        # dist_before_norm = torch.exp(((self.bias - scaled_dist)/self.nn_stretch_sigma).clamp(min=-20.0, max=20.0))
         dist_before_norm = torch.exp(((self.bias - scaled_dist)/self.nn_stretch_sigma).clamp(min=-20.0, max=20.0))
         self.cs_NCHW = self.sum_normalize(dist_before_norm)
         return self.cs_NCHW
@@ -453,6 +708,99 @@ class IDMRFLoss(nn.Module):
         # for key in self.feat_style_layers.keys():
         #     loss += torch.mean((gen_vgg_feats[key] - tar_vgg_feats[key])**2)
         # return loss
+
+# class IDMRFLoss_nan(nn.Module):
+#     def __init__(self, featlayer=VGG19FeatLayer):
+#         super(IDMRFLoss, self).__init__()
+#         self.featlayer = featlayer()
+#         self.feat_style_layers = {'relu3_2': 1.0, 'relu4_2': 1.0}
+#         self.feat_content_layers = {'relu4_2': 1.0}
+#         self.bias = 1.0
+#         self.nn_stretch_sigma = 0.5
+#         self.lambda_style = 1.0
+#         self.lambda_content = 1.0
+
+#     def sum_normalize(self, featmaps):
+#         reduce_sum = torch.sum(featmaps, dim=1, keepdim=True)
+#         return featmaps / reduce_sum
+
+#     def patch_extraction(self, featmaps):
+#         patch_size = 1
+#         patch_stride = 1
+#         patches_as_depth_vectors = featmaps.unfold(2, patch_size, patch_stride).unfold(3, patch_size, patch_stride)
+#         self.patches_OIHW = patches_as_depth_vectors.permute(0, 2, 3, 1, 4, 5)
+#         dims = self.patches_OIHW.size()
+#         self.patches_OIHW = self.patches_OIHW.view(-1, dims[3], dims[4], dims[5])
+#         return self.patches_OIHW
+
+#     def compute_relative_distances(self, cdist):
+#         epsilon = 1e-5
+#         div = torch.min(cdist, dim=1, keepdim=True)[0]
+#         relative_dist = cdist / (div + epsilon)
+#         return relative_dist
+
+#     def exp_norm_relative_dist(self, relative_dist):
+#         scaled_dist = relative_dist
+        
+#         tmp = (self.bias - scaled_dist)/self.nn_stretch_sigma
+#         tmp = tmp.clamp_(max=8.87228355e+01)
+#         dist_before_norm = torch.exp(tmp) #v3
+
+#         #scaled_dist = torch.clamp(scaled_dist, min=-10, max=10) #v1
+#         #dist_before_norm = torch.exp((self.bias - scaled_dist)/self.nn_stretch_sigma)
+#         self.cs_NCHW = self.sum_normalize(dist_before_norm)
+#         return self.cs_NCHW
+
+#     def mrf_loss(self, gen, tar):
+#         epsilon = 1e-8
+#         meanT = torch.mean(tar, 1, keepdim=True)
+#         gen_feats, tar_feats = gen - meanT, tar - meanT
+
+#         gen_feats_norm = torch.norm(gen_feats, p=2, dim=1, keepdim=True)
+#         tar_feats_norm = torch.norm(tar_feats, p=2, dim=1, keepdim=True)
+
+#         gen_normalized = gen_feats / gen_feats_norm
+#         tar_normalized = tar_feats / tar_feats_norm
+#         # if torch.isnan(gen_normalized).any() or torch.isinf(gen_normalized).any() is True :
+#         #     print("checking for NaNs or Infs : ")
+#         #     print(torch.isnan(gen_normalized).any(), torch.isinf(gen_normalized).any())
+#         cosine_dist_l = []
+#         BatchSize = tar.size(0)
+
+#         for i in range(BatchSize):
+#             tar_feat_i = tar_normalized[i:i+1, :, :, :]
+#             gen_feat_i = gen_normalized[i:i+1, :, :, :]
+#             patches_OIHW = self.patch_extraction(tar_feat_i)
+
+#             cosine_dist_i = F.conv2d(gen_feat_i, patches_OIHW)
+#             cosine_dist_l.append(cosine_dist_i)
+#         cosine_dist = torch.cat(cosine_dist_l, dim=0)
+#         cosine_dist_zero_2_one = - (cosine_dist - 1) / 2
+#         relative_dist = self.compute_relative_distances(cosine_dist_zero_2_one)
+#         rela_dist = self.exp_norm_relative_dist(relative_dist)
+#         dims_div_mrf = rela_dist.size()
+#         k_max_nc = torch.max(rela_dist.view(dims_div_mrf[0], dims_div_mrf[1], -1), dim=2)[0]
+#         div_mrf = torch.mean(k_max_nc, dim=1)
+#         div_mrf_sum = -torch.log(div_mrf+epsilon)
+#         div_mrf_sum = torch.sum(div_mrf_sum)
+#         return div_mrf_sum
+
+#     def forward(self, gen, tar):
+#         ## gen: [bz,3,h,w] rgb [0,1]
+#         gen_vgg_feats = self.featlayer(gen)
+#         tar_vgg_feats = self.featlayer(tar)
+#         style_loss_list = [self.feat_style_layers[layer] * self.mrf_loss(gen_vgg_feats[layer], tar_vgg_feats[layer]) for layer in self.feat_style_layers]
+#         self.style_loss = reduce(lambda x, y: x+y, style_loss_list) * self.lambda_style
+
+#         content_loss_list = [self.feat_content_layers[layer] * self.mrf_loss(gen_vgg_feats[layer], tar_vgg_feats[layer]) for layer in self.feat_content_layers]
+#         self.content_loss = reduce(lambda x, y: x+y, content_loss_list) * self.lambda_content
+
+#         return self.style_loss + self.content_loss
+
+#         # loss = 0
+#         # for key in self.feat_style_layers.keys():
+#         #     loss += torch.mean((gen_vgg_feats[key] - tar_vgg_feats[key])**2)
+#         # return loss
 
 
 
@@ -549,127 +897,127 @@ class VGG_16(nn.Module):
         out['last'] = x
         return out
 
-class VGGLoss(nn.Module):
-    def __init__(self):
-        super(VGGLoss, self).__init__()
-        self.featlayer = VGG_16().float()
-        self.featlayer.load_weights(path="data/face_recognition_model/vgg_face_torch/VGG_FACE.t7")
-        self.featlayer = self.featlayer.cuda().eval()
-        self.feat_style_layers = {'relu3_2': 1.0, 'relu4_2': 1.0}
-        self.feat_content_layers = {'relu4_2': 1.0}
-        self.bias = 1.0
-        self.nn_stretch_sigma = 0.5
-        self.lambda_style = 1.0
-        self.lambda_content = 1.0
+# class VGGLoss(nn.Module):
+#     def __init__(self):
+#         super(VGGLoss, self).__init__()
+#         self.featlayer = VGG_16().float()
+#         self.featlayer.load_weights(path="data/face_recognition_model/vgg_face_torch/VGG_FACE.t7")
+#         self.featlayer = self.featlayer.cuda().eval()
+#         self.feat_style_layers = {'relu3_2': 1.0, 'relu4_2': 1.0}
+#         self.feat_content_layers = {'relu4_2': 1.0}
+#         self.bias = 1.0
+#         self.nn_stretch_sigma = 0.5
+#         self.lambda_style = 1.0
+#         self.lambda_content = 1.0
 
-    def sum_normalize(self, featmaps):
-        reduce_sum = torch.sum(featmaps, dim=1, keepdim=True)
-        return featmaps / reduce_sum
+#     def sum_normalize(self, featmaps):
+#         reduce_sum = torch.sum(featmaps, dim=1, keepdim=True)
+#         return featmaps / reduce_sum
 
-    def patch_extraction(self, featmaps):
-        patch_size = 1
-        patch_stride = 1
-        patches_as_depth_vectors = featmaps.unfold(2, patch_size, patch_stride).unfold(3, patch_size, patch_stride)
-        self.patches_OIHW = patches_as_depth_vectors.permute(0, 2, 3, 1, 4, 5)
-        dims = self.patches_OIHW.size()
-        self.patches_OIHW = self.patches_OIHW.view(-1, dims[3], dims[4], dims[5])
-        return self.patches_OIHW
+#     def patch_extraction(self, featmaps):
+#         patch_size = 1
+#         patch_stride = 1
+#         patches_as_depth_vectors = featmaps.unfold(2, patch_size, patch_stride).unfold(3, patch_size, patch_stride)
+#         self.patches_OIHW = patches_as_depth_vectors.permute(0, 2, 3, 1, 4, 5)
+#         dims = self.patches_OIHW.size()
+#         self.patches_OIHW = self.patches_OIHW.view(-1, dims[3], dims[4], dims[5])
+#         return self.patches_OIHW
 
-    def compute_relative_distances(self, cdist):
-        epsilon = 1e-5
-        div = torch.min(cdist, dim=1, keepdim=True)[0]
-        relative_dist = cdist / (div + epsilon)
-        return relative_dist
+#     def compute_relative_distances(self, cdist):
+#         epsilon = 1e-5
+#         div = torch.min(cdist, dim=1, keepdim=True)[0]
+#         relative_dist = cdist / (div + epsilon)
+#         return relative_dist
 
-    def exp_norm_relative_dist(self, relative_dist):
-        scaled_dist = relative_dist
-        dist_before_norm = torch.exp((self.bias - scaled_dist)/self.nn_stretch_sigma)
-        self.cs_NCHW = self.sum_normalize(dist_before_norm)
-        return self.cs_NCHW
+#     def exp_norm_relative_dist(self, relative_dist):
+#         scaled_dist = relative_dist
+#         dist_before_norm = torch.exp((self.bias - scaled_dist)/self.nn_stretch_sigma)
+#         self.cs_NCHW = self.sum_normalize(dist_before_norm)
+#         return self.cs_NCHW
 
-    def mrf_loss(self, gen, tar):
-        meanT = torch.mean(tar, 1, keepdim=True)
-        gen_feats, tar_feats = gen - meanT, tar - meanT
+#     def mrf_loss(self, gen, tar):
+#         meanT = torch.mean(tar, 1, keepdim=True)
+#         gen_feats, tar_feats = gen - meanT, tar - meanT
 
-        gen_feats_norm = torch.norm(gen_feats, p=2, dim=1, keepdim=True)
-        tar_feats_norm = torch.norm(tar_feats, p=2, dim=1, keepdim=True)
+#         gen_feats_norm = torch.norm(gen_feats, p=2, dim=1, keepdim=True)
+#         tar_feats_norm = torch.norm(tar_feats, p=2, dim=1, keepdim=True)
 
-        gen_normalized = gen_feats / gen_feats_norm
-        tar_normalized = tar_feats / tar_feats_norm
+#         gen_normalized = gen_feats / gen_feats_norm
+#         tar_normalized = tar_feats / tar_feats_norm
 
-        cosine_dist_l = []
-        BatchSize = tar.size(0)
+#         cosine_dist_l = []
+#         BatchSize = tar.size(0)
 
-        for i in range(BatchSize):
-            tar_feat_i = tar_normalized[i:i+1, :, :, :]
-            gen_feat_i = gen_normalized[i:i+1, :, :, :]
-            patches_OIHW = self.patch_extraction(tar_feat_i)
+#         for i in range(BatchSize):
+#             tar_feat_i = tar_normalized[i:i+1, :, :, :]
+#             gen_feat_i = gen_normalized[i:i+1, :, :, :]
+#             patches_OIHW = self.patch_extraction(tar_feat_i)
 
-            cosine_dist_i = F.conv2d(gen_feat_i, patches_OIHW)
-            cosine_dist_l.append(cosine_dist_i)
-        cosine_dist = torch.cat(cosine_dist_l, dim=0)
-        cosine_dist_zero_2_one = - (cosine_dist - 1) / 2
-        relative_dist = self.compute_relative_distances(cosine_dist_zero_2_one)
-        rela_dist = self.exp_norm_relative_dist(relative_dist)
-        dims_div_mrf = rela_dist.size()
-        k_max_nc = torch.max(rela_dist.view(dims_div_mrf[0], dims_div_mrf[1], -1), dim=2)[0]
-        div_mrf = torch.mean(k_max_nc, dim=1)
-        div_mrf_sum = -torch.log(div_mrf)
-        div_mrf_sum = torch.sum(div_mrf_sum)
-        return div_mrf_sum
+#             cosine_dist_i = F.conv2d(gen_feat_i, patches_OIHW)
+#             cosine_dist_l.append(cosine_dist_i)
+#         cosine_dist = torch.cat(cosine_dist_l, dim=0)
+#         cosine_dist_zero_2_one = - (cosine_dist - 1) / 2
+#         relative_dist = self.compute_relative_distances(cosine_dist_zero_2_one)
+#         rela_dist = self.exp_norm_relative_dist(relative_dist)
+#         dims_div_mrf = rela_dist.size()
+#         k_max_nc = torch.max(rela_dist.view(dims_div_mrf[0], dims_div_mrf[1], -1), dim=2)[0]
+#         div_mrf = torch.mean(k_max_nc, dim=1)
+#         div_mrf_sum = -torch.log(div_mrf)
+#         div_mrf_sum = torch.sum(div_mrf_sum)
+#         return div_mrf_sum
 
-    def forward(self, gen, tar):
-        ## gen: [bz,3,h,w] rgb [0,1]
-        gen_vgg_feats = self.featlayer(gen)
-        tar_vgg_feats = self.featlayer(tar)
-        style_loss_list = [self.feat_style_layers[layer] * self.mrf_loss(gen_vgg_feats[layer], tar_vgg_feats[layer]) for layer in self.feat_style_layers]
-        self.style_loss = reduce(lambda x, y: x+y, style_loss_list) * self.lambda_style
+#     def forward(self, gen, tar):
+#         ## gen: [bz,3,h,w] rgb [0,1]
+#         gen_vgg_feats = self.featlayer(gen)
+#         tar_vgg_feats = self.featlayer(tar)
+#         style_loss_list = [self.feat_style_layers[layer] * self.mrf_loss(gen_vgg_feats[layer], tar_vgg_feats[layer]) for layer in self.feat_style_layers]
+#         self.style_loss = reduce(lambda x, y: x+y, style_loss_list) * self.lambda_style
 
-        content_loss_list = [self.feat_content_layers[layer] * self.mrf_loss(gen_vgg_feats[layer], tar_vgg_feats[layer]) for layer in self.feat_content_layers]
-        self.content_loss = reduce(lambda x, y: x+y, content_loss_list) * self.lambda_content
+#         content_loss_list = [self.feat_content_layers[layer] * self.mrf_loss(gen_vgg_feats[layer], tar_vgg_feats[layer]) for layer in self.feat_content_layers]
+#         self.content_loss = reduce(lambda x, y: x+y, content_loss_list) * self.lambda_content
 
-        return self.style_loss + self.content_loss
-        # loss = 0
-        # for key in self.feat_style_layers.keys():
-        #     loss += torch.mean((gen_vgg_feats[key] - tar_vgg_feats[key])**2)
-        # return loss
+#         return self.style_loss + self.content_loss
+#         # loss = 0
+#         # for key in self.feat_style_layers.keys():
+#         #     loss += torch.mean((gen_vgg_feats[key] - tar_vgg_feats[key])**2)
+#         # return loss
 
-##############################################
-## ref: https://github.com/cydonia999/VGGFace2-pytorch
-from ..models.frnet import resnet50, load_state_dict
-class VGGFace2Loss(nn.Module):
-    def __init__(self, pretrained_model, pretrained_data='vggface2'):
-        super(VGGFace2Loss, self).__init__()
-        self.reg_model = resnet50(num_classes=8631, include_top=False).eval().cuda()
-        load_state_dict(self.reg_model, pretrained_model)
-        self.mean_bgr = torch.tensor([91.4953, 103.8827, 131.0912]).cuda()
+# ##############################################
+# ## ref: https://github.com/cydonia999/VGGFace2-pytorch
+# from ..models.frnet import resnet50, load_state_dict
+# class VGGFace2Loss(nn.Module):
+#     def __init__(self, pretrained_model, pretrained_data='vggface2'):
+#         super(VGGFace2Loss, self).__init__()
+#         self.reg_model = resnet50(num_classes=8631, include_top=False).eval().cuda()
+#         load_state_dict(self.reg_model, pretrained_model)
+#         self.mean_bgr = torch.tensor([91.4953, 103.8827, 131.0912]).cuda()
 
-    def reg_features(self, x):
-        # out = []
-        margin=10
-        x = x[:,:,margin:224-margin,margin:224-margin]
-        # x = F.interpolate(x*2. - 1., [224,224], mode='nearest')
-        x = F.interpolate(x*2. - 1., [224,224], mode='bilinear')
-        # import ipdb; ipdb.set_trace()
-        feature = self.reg_model(x)
-        feature = feature.view(x.size(0), -1)
-        return feature
+#     def reg_features(self, x):
+#         # out = []
+#         margin=10
+#         x = x[:,:,margin:224-margin,margin:224-margin]
+#         # x = F.interpolate(x*2. - 1., [224,224], mode='nearest')
+#         x = F.interpolate(x*2. - 1., [224,224], mode='bilinear')
+#         # import ipdb; ipdb.set_trace()
+#         feature = self.reg_model(x)
+#         feature = feature.view(x.size(0), -1)
+#         return feature
 
-    def transform(self, img):
-        # import ipdb;ipdb.set_trace()
-        img = img[:, [2,1,0], :, :].permute(0,2,3,1) * 255 - self.mean_bgr
-        img = img.permute(0,3,1,2)
-        return img
+#     def transform(self, img):
+#         # import ipdb;ipdb.set_trace()
+#         img = img[:, [2,1,0], :, :].permute(0,2,3,1) * 255 - self.mean_bgr
+#         img = img.permute(0,3,1,2)
+#         return img
 
-    def _cos_metric(self, x1, x2):
-        return 1.0 - F.cosine_similarity(x1, x2, dim=1)
+#     def _cos_metric(self, x1, x2):
+#         return 1.0 - F.cosine_similarity(x1, x2, dim=1)
 
-    def forward(self, gen, tar, is_crop=True):
-        gen = self.transform(gen)
-        tar = self.transform(tar)
+#     def forward(self, gen, tar, is_crop=True):
+#         gen = self.transform(gen)
+#         tar = self.transform(tar)
 
-        gen_out = self.reg_features(gen)
-        tar_out = self.reg_features(tar)
-        # loss = ((gen_out - tar_out)**2).mean()
-        loss = self._cos_metric(gen_out, tar_out).mean()
-        return loss
+#         gen_out = self.reg_features(gen)
+#         tar_out = self.reg_features(tar)
+#         # loss = ((gen_out - tar_out)**2).mean()
+#         loss = self._cos_metric(gen_out, tar_out).mean()
+#         return loss

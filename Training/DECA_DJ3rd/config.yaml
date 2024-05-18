@@ -9,11 +9,11 @@
 # why:
 # '''
 # pretrained_modelpath: '/ps/scratch/yfeng/Data/Projects-data/DECA-training/training/DECA_SIGGRAPH/pretrain/model.tar'
-output_dir: "Training/DECA_DJ3rd1"
+output_dir: "Training/DECA_DJ3rd"
 pretrained_modelpath: "/home/cine/Documents/DJ/DECA/data/deca_model.tar"
 dataset:
-  batch_size: 8
-  K: 1
+  batch_size: 6
+  K: 3
 train:
   train_detail: True
   resume: True

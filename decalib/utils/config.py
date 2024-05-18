@@ -1,9 +1,11 @@
 '''
 Default config for DECA
+python demos/demo_reconstruct.py -i TestSamples/examples --saveDepth True --saveObj True
 '''
 from yacs.config import CfgNode as CN
 import argparse
 import yaml
+import pickle
 import os
 
 cfg = CN()
@@ -11,9 +13,11 @@ cfg = CN()
 abs_deca_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 cfg.deca_dir = abs_deca_dir
 cfg.device = 'cuda'
-cfg.device_id = '0'
+cfg.device_id = '3,2'
 
-cfg.pretrained_modelpath = os.path.join(cfg.deca_dir, 'data', 'deca_model.tar')
+#cfg.pretrained_modelpath = '../../data/deca_model.tar'
+cfg.pretrained_modelpath='/home/cine/Documents/DJ/DECA/Training/DECA_DJ3_AU_feat_loss_MEFARG_thresholding_VAMOS/model.tar'
+# cfg.pretrained_modelpath = os.path.join(cfg.deca_dir, 'data', 'deca_model.tar')
 cfg.output_dir = ''
 cfg.rasterizer_type = 'pytorch3d'
 # ---------------------------------------------------------------------------- #
@@ -52,12 +56,15 @@ cfg.model.max_z = 0.01
 # Options for Dataset
 # ---------------------------------------------------------------------------- #
 cfg.dataset = CN()
-cfg.dataset.training_data = ['vggface2', 'ethnicity']
+# cfg.dataset.training_data = ['vggface2', 'ethnicity']
 # cfg.dataset.training_data = ['ethnicity']
-cfg.dataset.eval_data = ['aflw2000']
-cfg.dataset.test_data = ['']
-cfg.dataset.batch_size = 2
-cfg.dataset.K = 4
+# cfg.dataset.eval_data = ['aflw2000']
+# cfg.dataset.test_data = ['']
+cfg.dataset.training_data = ['selfDataset']
+
+cfg.dataset.mediapipePath = '/home/cine/Documents/DJ/DECA/data/mediapipe_landmark_embedding.npz'
+cfg.dataset.batch_size = 16
+cfg.dataset.K = 1
 cfg.dataset.isSingle = False
 cfg.dataset.num_workers = 2
 cfg.dataset.image_size = 224
@@ -69,7 +76,7 @@ cfg.dataset.trans_scale = 0.
 # Options for training
 # ---------------------------------------------------------------------------- #
 cfg.train = CN()
-cfg.train.train_detail = False
+cfg.train.train_detail = True
 cfg.train.max_epochs = 500
 cfg.train.max_steps = 1000000
 cfg.train.lr = 1e-4
@@ -106,12 +113,12 @@ cfg.loss.shape_consistency = True
 # loss for detail
 cfg.loss.detail_consistency = True
 cfg.loss.useConstraint = True
-cfg.loss.mrf = 5e-2
+cfg.loss.mrf = 5e-3
 cfg.loss.photo_D = 2.
 cfg.loss.reg_sym = 0.005
 cfg.loss.reg_z = 0.005
 cfg.loss.reg_diff = 0.005
-
+cfg.loss.AU_feature= 0.25
 
 def get_cfg_defaults():
     """Get a yacs CfgNode object with default values for my_project."""
@@ -123,10 +130,14 @@ def update_cfg(cfg, cfg_file):
     cfg.merge_from_file(cfg_file)
     return cfg.clone()
 
-def parse_args():
+def parse_args(cfg_name=None):
     parser = argparse.ArgumentParser()
-    parser.add_argument('--cfg', type=str, help='cfg file path')
+    if cfg_name == None:
+        parser.add_argument('--cfg', type=str, default='configs/release_version/deca_detail.yml', help='cfg file path')
+    else:
+        parser.add_argument('--cfg', type=str, default=cfg_name, help='cfg file path')
     parser.add_argument('--mode', type=str, default = 'train', help='deca mode')
+
 
     args = parser.parse_args()
     print(args, end='\n\n')

@@ -1,22 +1,18 @@
 !!python/object/new:yacs.config.CfgNode
 dictitems:
-  cfg_file: null
+  cfg_file: configs/release_version/deca_detail_AU_Loss.yml
   dataset: !!python/object/new:yacs.config.CfgNode
     dictitems:
-      K: 4
-      batch_size: 2
-      eval_data:
-      - aflw2000
+      K: 1
+      batch_size: 4
       image_size: 224
       isSingle: false
+      mediapipePath: /home/cine/Documents/DJ/DECA/data/mediapipe_landmark_embedding.npz
       num_workers: 2
       scale_max: 1.8
       scale_min: 1.4
-      test_data:
-      - ''
       training_data:
-      - vggface2
-      - ethnicity
+      - selfDataset
       trans_scale: 0.0
     state:
       __deprecated_keys__: !!set {}
@@ -25,16 +21,18 @@ dictitems:
       __renamed_keys__: {}
   deca_dir: /home/cine/Documents/DJ/DECA
   device: cuda
-  device_id: '0'
+  device_id: 3,2
+  exp_name: deca_detail_AU_Loss
   loss: !!python/object/new:yacs.config.CfgNode
     dictitems:
+      AU_feature: 0.25
       detail_consistency: true
       eyed: 1.0
       id: 0.2
       id_shape_only: true
       lipd: 0.5
       lmk: 1.0
-      mrf: 0.05
+      mrf: 0.005
       photo: 2.0
       photo_D: 2.0
       reg_diff: 0.005
@@ -92,24 +90,24 @@ dictitems:
       __immutable__: false
       __new_allowed__: false
       __renamed_keys__: {}
-  output_dir: ''
+  output_dir: Training/DECA_DJ3_AU_feat_loss_MEFARG
   pretrained_modelpath: /home/cine/Documents/DJ/DECA/data/deca_model.tar
   rasterizer_type: pytorch3d
   train: !!python/object/new:yacs.config.CfgNode
     dictitems:
-      checkpoint_steps: 500
+      checkpoint_steps: 1000
       eval_steps: 5000
       log_dir: logs
-      log_steps: 10
+      log_steps: 200
       lr: 0.0001
-      max_epochs: 500
+      max_epochs: 10
       max_steps: 1000000
       resume: true
-      train_detail: false
+      train_detail: true
       val_steps: 500
       val_vis_dir: val_images
       vis_dir: train_images
-      vis_steps: 200
+      vis_steps: 500
       write_summary: true
     state:
       __deprecated_keys__: !!set {}

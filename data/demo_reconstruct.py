@@ -41,15 +41,20 @@ def main(args):
 
     # run DECA
     deca_cfg.model.use_tex = args.useTex
-    deca_cfg.rasterizer_type = 'pytorch3d'
+    deca_cfg.rasterizer_type = args.rasterizer_type
     deca_cfg.model.extract_tex = args.extractTex
+    deca_cfg.model.tex_type = 'BFM'
+    deca_cfg.model.useTex=True
+
     deca = DECA(config = deca_cfg, device=device)
     # for i in range(len(testdata)):
     for i in tqdm(range(len(testdata))):
         name = testdata[i]['imagename']
         images = testdata[i]['image'].to(device)[None,...]
         with torch.no_grad():
+            print(images)
             codedict = deca.encode(images)
+            print(codedict)
             opdict, visdict = deca.decode(codedict) #tensor
             if args.render_orig:
                 tform = testdata[i]['tform'][None, ...]
@@ -105,7 +110,7 @@ if __name__ == '__main__':
     parser.add_argument('--detector', default='fan', type=str,
                         help='detector for cropping face, check decalib/detectors.py for details' )
     # rendering option
-    parser.add_argument('--rasterizer_type', default='standard', type=str,
+    parser.add_argument('--rasterizer_type', default='pytorch3d', type=str,
                         help='rasterizer type: pytorch3d or standard' )
     parser.add_argument('--render_orig', default=True, type=lambda x: x.lower() in ['true', '1'],
                         help='whether to render results in original image size, currently only works when rasterizer_type=standard')
