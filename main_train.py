@@ -47,8 +47,7 @@ def main(cfg):
     deca = DECA(cfg)
     trainer = Trainer(model=deca, config=cfg)
 
-    print(torch.cuda.current_device()) 
-    print(torch.cuda.device_count())
+    
     ## start train
     trainer.fit()
 
@@ -56,7 +55,7 @@ if __name__ == '__main__':
     from decalib.utils.config import parse_args
     cfg = parse_args(cfg_name='configs/release_version/deca_detail_AU_Loss.yml')
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "1,2"
     if cfg.cfg_file is not None:
         exp_name = cfg.cfg_file.split('/')[-1].split('.')[0]
         cfg.exp_name = exp_name
