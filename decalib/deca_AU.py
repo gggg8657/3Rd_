@@ -34,7 +34,8 @@ from .utils.tensor_cropper import transform_points
 from .datasets import build_datasets_detail
 from .utils.config import cfg
 
-from .models.OpenGraphAU.model.ANFL import AFG
+# from .models.OpenGraphAU.model.ANFL import AFG
+from .models.OpenGraphAU.model.MEFL import MEFARG
 from .models.encoders_au import AUEncoder
 from .models.OpenGraphAU.utils import load_state_dict
 from .models.OpenGraphAU.utils import *
@@ -78,7 +79,7 @@ class DECA(nn.Module):
         # set up parameters
         self.n_param = model_cfg.n_shape+model_cfg.n_tex+model_cfg.n_exp+model_cfg.n_pose+model_cfg.n_cam+model_cfg.n_light
         self.n_detail = model_cfg.n_detail
-        self.n_cond = model_cfg.n_exp + 3 # exp + jaw pose
+        self.n_cond = model_cfg.n_exp + 3# exp + jaw pose + AU_param
         self.n_monem = model_cfg.n_exp + 3 # + 27 # exp + jaw pose
         self.num_list = [model_cfg.n_shape, model_cfg.n_tex, model_cfg.n_exp, model_cfg.n_pose, model_cfg.n_cam, model_cfg.n_light]
         self.param_dict = {i:model_cfg.get('n_' + i) for i in model_cfg.param_list}
@@ -93,7 +94,7 @@ class DECA(nn.Module):
         self.E_flame = ResnetEncoder(outsize=self.n_param).to(self.device) 
         self.E_detail = ResnetEncoder(outsize=self.n_detail).to(self.device)
 
-        self.AUNet = AFG(num_main_classes=self.auconf.num_main_classes, num_sub_classes=self.auconf.num_sub_classes, backbone=self.auconf.arc).to(self.device)
+        self.AUNet = MEFARG(num_main_classes=self.auconf.num_main_classes, num_sub_classes=self.auconf.num_sub_classes, backbone=self.auconf.arc).to(self.device)
         self.AU_Encoder = AUEncoder().to(self.device)
         self.AUNet = load_state_dict(self.AUNet, self.auconf.resume).to(self.device)
 
@@ -101,7 +102,7 @@ class DECA(nn.Module):
         self.flame = FLAME(model_cfg).to(self.device)
         if model_cfg.use_tex:
             self.flametex = FLAMETex(model_cfg).to(self.device)
-        self.D_detail = Generator(latent_dim=self.n_detail+self.n_cond, out_channels=1, out_scale=model_cfg.max_z, sample_mode = 'bilinear').to(self.device)
+        self.D_detail = Generator(latent_dim=self.n_detail+self.n_cond, au_dim=41, out_channels=1, out_scale=model_cfg.max_z, sample_mode = 'bilinear').to(self.device)
         # resume model
         model_path = self.cfg.pretrained_modelpath
         if os.path.exists(model_path):
@@ -169,8 +170,9 @@ class DECA(nn.Module):
         codedict = self.decompose_code(parameters, self.param_dict) # ... parameters are loaded into codedict
         codedict['images'] = images #codedict images as images
         if use_detail:
-            x, afn, main_cl = self.AUNet(images, use_gnn=True) # afn : [16,27,512] #codedict ['exp'] shape is [16,50]
-            codedict['afn'] = self.AU_Encoder(afn)
+            afn= self.AUNet(images)[1] # afn : [16,27,512] #codedict ['exp'] shape is [16,50]
+            codedict['afn']=afn
+            # codedict['afn'] = self.AU_Encoder(afn)
             detailcode = self.E_detail(images)
             codedict['detail'] = detailcode
         if self.cfg.model.jaw_type == 'euler':
@@ -234,9 +236,9 @@ class DECA(nn.Module):
             opdict['albedo'] = albedo
             
         if use_detail:
-            uv_z = self.D_detail(torch.cat([codedict['pose'][:,3:], codedict['exp'], codedict['detail']], dim=1))
+            uv_z = self.D_detail(torch.cat([codedict['pose'][:,3:], codedict['exp'], codedict['detail'],codedict['afn']], dim=1))
             if iddict is not None:
-                uv_z = self.D_detail(torch.cat([iddict['pose'][:,3:], iddict['exp'], codedict['detail']], dim=1))
+                uv_z = self.D_detail(torch.cat([iddict['pose'][:,3:], iddict['exp'], codedict['detail'],codedict['afn']], dim=1))
             uv_detail_normals = self.displacement2normal(uv_z, verts, ops['normals'])
             uv_shading = self.render.add_SHlight(uv_detail_normals, codedict['light'])
             uv_texture = albedo*uv_shading

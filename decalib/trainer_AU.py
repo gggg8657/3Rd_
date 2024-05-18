@@ -39,7 +39,8 @@ from .utils.config import cfg
 torch.backends.cudnn.benchmark = True
 from .utils import lossfunc_AU as lossfunc
 
-from .models.OpenGraphAU.model.ANFL import AFG
+# from .models.OpenGraphAU.model.ANFL import AFG
+from .models.OpenGraphAU.model.MEFL import MEFARG
 from .models.OpenGraphAU.utils import load_state_dict
 from .models.OpenGraphAU.utils import *
 from .models.OpenGraphAU.conf import get_config,set_logger,set_outdir,set_env
@@ -117,7 +118,7 @@ class Trainer(object):
         else:
             logger.info('model path not found, start training from scratch')
             self.global_step = 0
-        self.AU_net = AFG(num_main_classes=self.auconf.num_main_classes, num_sub_classes=self.auconf.num_sub_classes, backbone=self.auconf.arc).to(self.device)
+        self.AU_net = MEFARG(num_main_classes=self.auconf.num_main_classes, num_sub_classes=self.auconf.num_sub_classes, backbone=self.auconf.arc).to(self.device)
         self.AU_net = load_state_dict(self.AU_net, self.auconf.resume).to(self.device)
         self.AU_net.eval()
 
@@ -248,8 +249,8 @@ class Trainer(object):
             predicted_images = ops['images']*mask_face_eye*ops['alpha_images']
 
             masks = masks[:,None,:,:]
-
-            uv_z = self.deca.D_detail(torch.cat([posecode[:,3:], expcode, detailcode], dim=1))
+            au_param = self.AU_net(images)[1]
+zzZZ            uv_z = self.deca.D_detail(torch.cat([posecode[:,3:], expcode, detailcode,au_param], dim=1))
             # render detail
             uv_detail_normals = self.deca.displacement2normal(uv_z, verts, ops['normals'])
             uv_shading = self.deca.render.add_SHlight(uv_detail_normals, lightcode.detach())
