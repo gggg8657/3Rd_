@@ -25,7 +25,7 @@ from skimage.io import imread
 import cv2
 import pickle
 from .utils.renderer import SRenderY, set_rasterizer
-from .models.encoders import ResnetEncoder
+from .models.encoders_enc import ResnetEncoder, ResnetEncoder_feat
 from .models.FLAME import FLAME, FLAMETex
 from .models.decoders import Generator
 from .utils import util
@@ -34,9 +34,11 @@ from .utils.tensor_cropper import transform_points
 from .datasets import build_datasets_detail
 from .utils.config import cfg
 
+from .models.encoders_enc import DetailAUTransformer
+
 # from .models.OpenGraphAU.model.ANFL import AFG
 from .models.OpenGraphAU.model.MEFL import MEFARG
-from .models.encoders_au import AUEncoder
+from .models.encoders_enc import AUEncoder
 from .models.OpenGraphAU.utils import load_state_dict
 from .models.OpenGraphAU.utils import *
 from .models.OpenGraphAU.conf import get_config,set_logger,set_outdir,set_env
@@ -92,17 +94,24 @@ class DECA(nn.Module):
 
         # encoders
         self.E_flame = ResnetEncoder(outsize=self.n_param).to(self.device) 
-        self.E_detail = ResnetEncoder(outsize=self.n_detail).to(self.device)
+        
+        #detail features
+        self.E_detail = ResnetEncoder_feat(outsize=self.n_detail).to(self.device)
 
+        #au features
         self.AUNet = MEFARG(num_main_classes=self.auconf.num_main_classes, num_sub_classes=self.auconf.num_sub_classes, backbone=self.auconf.arc).to(self.device)
-        self.AU_Encoder = AUEncoder().to(self.device)
         self.AUNet = load_state_dict(self.AUNet, self.auconf.resume).to(self.device)
+
+        self.DAT = DetailAUTransformer(detail_dim=2048, au_dim=41, hidden_dim=256, output_dim=128, num_layers=4, num_heads=8).to(self.device)
+
+        # self.AU_Encoder = AUEncoder().to(self.device)
+        
 
         # decoders
         self.flame = FLAME(model_cfg).to(self.device)
         if model_cfg.use_tex:
             self.flametex = FLAMETex(model_cfg).to(self.device)
-        self.D_detail = Generator(latent_dim=self.n_detail+self.n_cond, au_dim=41, out_channels=1, out_scale=model_cfg.max_z, sample_mode = 'bilinear').to(self.device)
+        self.D_detail = Generator(latent_dim=self.n_detail+self.n_cond, out_channels=1, out_scale=model_cfg.max_z, sample_mode = 'bilinear').to(self.device)
         # resume model
         model_path = self.cfg.pretrained_modelpath
         if os.path.exists(model_path):
@@ -113,15 +122,20 @@ class DECA(nn.Module):
             util.copy_state_dict(self.E_flame.state_dict(), checkpoint['E_flame'])
             util.copy_state_dict(self.E_detail.state_dict(), checkpoint['E_detail'])
             util.copy_state_dict(self.D_detail.state_dict(), checkpoint['D_detail'])
+            # util.copy_state_dict(self.AUNet.state_dict(), checkpoint['AUNet'])
+            # util.copy_state_dict(self.AU_Encoder.state_dict(), checkpoint['AU_Encoder'])
+            # util.copy_state_dict(self.DAT.state_dict(), checkpoint['DAT'])
         else:
             print(f'please check model path: {model_path}')
             # exit()
         # eval mode
         self.E_flame.eval()
         self.E_detail.train()
-        self.D_detail.train()
         self.AUNet.train()
-        self.AU_Encoder.train()
+        self.DAT.train()
+        # self.AU_Encoder.train()
+        self.D_detail.train()
+        
 
     def decompose_code(self, code, num_dict):
         ''' Convert a flattened parameter vector to a dictionary of parameters
@@ -174,7 +188,8 @@ class DECA(nn.Module):
             codedict['afn']=afn
             # codedict['afn'] = self.AU_Encoder(afn)
             detailcode = self.E_detail(images)
-            codedict['detail'] = detailcode
+            codedict['detail_feature'] = detailcode
+            codedict['detail'] = self.DAT(codedict['detail_feature'], codedict['afn'])
         if self.cfg.model.jaw_type == 'euler':
             posecode = codedict['pose']
             euler_jaw_pose = posecode[:,3:].clone() # x for yaw (open mouth), y for pitch (left ang right), z for roll
@@ -349,6 +364,8 @@ class DECA(nn.Module):
         return {
             'E_flame': self.E_flame.state_dict(),
             'E_detail': self.E_detail.state_dict(),
-            # 'D_detail': self.D_detail.state_dict(),
-            'AU_Encoder':self.AU_Encoder.state_dict()
+            'D_detail': self.D_detail.state_dict(),
+            'AUNet': self.AUNet.state_dict(),
+            'DAT': self.DAT.state_dict()
+            # 'AU_Encoder':self.AU_Encoder.state_dict()
         }

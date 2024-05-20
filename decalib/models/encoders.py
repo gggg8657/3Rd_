@@ -38,3 +38,6 @@ class ResnetEncoder(nn.Module):
         if self.last_op:
             parameters = self.last_op(parameters)
         return parameters
+
+        import torch
+

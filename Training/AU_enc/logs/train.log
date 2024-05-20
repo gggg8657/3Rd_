@@ -1,0 +1,4 @@
+2024-05-20 16:56:39.245 | INFO     | decalib.trainer_AU_enc:prepare_data:406 - ---- training data numbers: 
+2024-05-20 16:56:44.160 | INFO     | decalib.trainer_AU_enc:fit:441 - ExpName: deca_detail_AU_enc 
+Epoch: 0, Iter: 0/8327, Time: 2024-05-20-16:56:44 
+photo_detail: 0.1033, photo_detail_mrf: 0.5569, au_class_consistency_loss: 0.6198, z_reg: 0.0000, z_diff: 0.0000, z_sym: 0.2246, all_loss: 1.5046, 

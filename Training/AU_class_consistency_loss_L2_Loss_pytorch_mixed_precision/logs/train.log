@@ -1288,3 +1288,4 @@ photo_detail: 0.0888, photo_detail_mrf: 0.5497, au_class_consistency_loss: 0.450
 2024-05-20 13:45:42.361 | INFO     | decalib.trainer_AU:fit:439 - ExpName: deca_detail_AU_Loss 
 Epoch: 9, Iter: 8057/8327, Time: 2024-05-20-13:45:42 
 photo_detail: 0.1048, photo_detail_mrf: 0.5725, au_class_consistency_loss: 0.4768, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.3400, all_loss: 2.4941, 
+2024-05-20 16:55:51.034 | INFO     | decalib.trainer_AU_enc:prepare_data:406 - ---- training data numbers: 

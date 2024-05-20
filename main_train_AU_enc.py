@@ -53,9 +53,9 @@ def main(cfg):
 
 if __name__ == '__main__':
     from decalib.utils.config import parse_args
-    cfg = parse_args(cfg_name='configs/release_version/deca_detail_AU_Loss.yml')
+    cfg = parse_args(cfg_name='configs/release_version/deca_detail_AU_enc.yml')
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = "3,2"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "1,0"
     if cfg.cfg_file is not None:
         exp_name = cfg.cfg_file.split('/')[-1].split('.')[0]
         cfg.exp_name = exp_name
