@@ -1,0 +1,12 @@
+2024-05-20 17:27:13.514 | INFO     | decalib.trainer_AU_enc:prepare_data:406 - ---- training data numbers: 
+2024-05-20 17:28:17.809 | INFO     | decalib.trainer_AU_enc_dec:prepare_data:404 - ---- training data numbers: 
+2024-05-20 17:28:22.435 | INFO     | decalib.trainer_AU_enc_dec:fit:439 - ExpName: deca_detail_AU_Tenc_dec 
+Epoch: 0, Iter: 0/8327, Time: 2024-05-20-17:28:22 
+photo_detail: 0.1057, photo_detail_mrf: 0.5745, au_class_consistency_loss: 0.7173, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.1628, all_loss: 2.5604, 
+2024-05-20 17:32:16.466 | INFO     | decalib.trainer_AU_enc_dec:prepare_data:406 - ---- training data numbers: 
+2024-05-20 17:32:21.053 | INFO     | decalib.trainer_AU_enc_dec:fit:441 - ExpName: deca_detail_AU_Tenc_dec 
+Epoch: 0, Iter: 0/8327, Time: 2024-05-20-17:32:21 
+photo_detail: 0.1057, photo_detail_mrf: 0.5745, au_class_consistency_loss: 0.7171, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.1628, all_loss: 2.5602, 
+2024-05-20 17:36:21.017 | INFO     | decalib.trainer_AU_enc_dec:fit:441 - ExpName: deca_detail_AU_Tenc_dec 
+Epoch: 0, Iter: 200/8327, Time: 2024-05-20-17:36:21 
+photo_detail: 0.1061, photo_detail_mrf: 0.5199, au_class_consistency_loss: 0.7993, z_reg: 0.0000, z_diff: 0.0000, z_sym: 1.1969, all_loss: 2.6223, 

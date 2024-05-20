@@ -34,8 +34,8 @@ def main(cfg):
     # start training
     # deca model
     #train with AU
-    from decalib.deca_AU_enc import DECA
-    from decalib.trainer_AU_enc import Trainer
+    from decalib.deca_AU_enc_dec import DECA
+    from decalib.trainer_AU_enc_dec import Trainer
     #train origin DECA
     # from decalib.deca import DECA
     # from decalib.trainer import Trainer
@@ -53,7 +53,7 @@ def main(cfg):
 
 if __name__ == '__main__':
     from decalib.utils.config import parse_args
-    cfg = parse_args(cfg_name='configs/release_version/deca_detail_AU_enc.yml')
+    cfg = parse_args(cfg_name='configs/release_version/deca_detail_AU_Tenc_dec.yml')
 
     os.environ["CUDA_VISIBLE_DEVICES"] = "1,0"
     if cfg.cfg_file is not None:

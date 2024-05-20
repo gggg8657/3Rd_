@@ -90,7 +90,9 @@ class Trainer(object):
         if self.train_detail:
             self.opt = torch.optim.Adam(
                                 list(self.deca.E_detail.parameters()) + \
-                                list(self.deca.D_detail.parameters())  ,
+                                list(self.deca.D_detail.parameters()) + \
+                                list(self.deca.AUNet.parameters()) + \
+                                list(self.deca.DAT.parameters()),
                                 lr=self.cfg.train.lr,
                                 amsgrad=False)
         else:
@@ -121,9 +123,9 @@ class Trainer(object):
         else:
             logger.info('model path not found, start training from scratch')
             self.global_step = 0
-        self.AU_net = MEFARG(num_main_classes=self.auconf.num_main_classes, num_sub_classes=self.auconf.num_sub_classes, backbone=self.auconf.arc).to(self.device)
-        self.AU_net = load_state_dict(self.AU_net, self.auconf.resume).to(self.device)
-        self.AU_net.eval()
+        # self.AU_net = MEFARG(num_main_classes=self.auconf.num_main_classes, num_sub_classes=self.auconf.num_sub_classes, backbone=self.auconf.arc).to(self.device)
+        # self.AU_net = load_state_dict(self.AU_net, self.auconf.resume).to(self.device)
+        # self.AU_net.eval()
 
     def training_step(self, batch, batch_nb, training_type='coarse'):
         self.deca.train()
@@ -253,7 +255,7 @@ class Trainer(object):
             predicted_images = ops['images']*mask_face_eye*ops['alpha_images']
 
             masks = masks[:,None,:,:]
-            au_param = self.AU_net(images)[1]
+            au_param = self.deca.AUNet(images)[1]
             uv_z = self.deca.D_detail(torch.cat([posecode[:,3:], expcode, detailcode,au_param], dim=1))
             # render detail
             uv_detail_normals = self.deca.displacement2normal(uv_z, verts, ops['normals'])
@@ -299,7 +301,7 @@ class Trainer(object):
                 losses['photo_detail_mrf'] = self.mrf_loss(uv_texture_patch*uv_vis_mask_patch, uv_texture_gt_patch*uv_vis_mask_patch)*self.cfg.loss.photo_D*self.cfg.loss.mrf
                 # losses['au_feature_loss'] = self.au_feature_loss(uv_texture_patch*uv_vis_mask_patch, uv_texture_gt_patch*uv_vis_mask_patch) # ver1
                 # losses['au_feature_loss'], losses['chin_loss'], losses['dimp_loss']= self.au_feature_loss(images, predicted_detail_images) # ver 2
-                losses['au_class_consistency_loss']= self.au_feature_loss(self.AU_net(images)[1], self.AU_net(predicted_detail_images)[1]) #ver 3
+                losses['au_class_consistency_loss']= self.au_feature_loss(self.deca.AUNet(images)[1], self.deca.AUNet(predicted_detail_images)[1]) #ver 3
                 # losses['vggface2_detail'] = self.vggface2_loss(predicted_detail_images, images)*self.cfg.loss.photo_D
                 
                 losses['z_reg'] = torch.mean(uv_z.abs())*self.cfg.loss.reg_z
