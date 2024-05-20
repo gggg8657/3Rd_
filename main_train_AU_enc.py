@@ -34,8 +34,8 @@ def main(cfg):
     # start training
     # deca model
     #train with AU
-    from decalib.deca_AU import DECA
-    from decalib.trainer_AU import Trainer
+    from decalib.deca_AU_enc import DECA
+    from decalib.trainer_AU_enc import Trainer
     #train origin DECA
     # from decalib.deca import DECA
     # from decalib.trainer import Trainer

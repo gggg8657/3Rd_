@@ -23,7 +23,7 @@ from tqdm import tqdm
 import torch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from decalib.deca import DECA
+from decalib.deca_AU import DECA
 from decalib.datasets import datasets 
 from decalib.utils import util
 from decalib.utils.config import cfg as deca_cfg
@@ -35,7 +35,7 @@ def main(args):
     savefolder = args.savefolder
     device = args.device
     os.makedirs(savefolder, exist_ok=True)
-
+    os.environ["CUDA_VISIBLE_DEVICES"] = "3,2"
     # load test images 
     testdata = datasets.TestData(args.inputpath, iscrop=args.iscrop, face_detector=args.detector, sample_step=args.sample_step)
 

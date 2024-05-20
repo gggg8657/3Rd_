@@ -27,7 +27,7 @@ import pickle
 from .utils.renderer import SRenderY, set_rasterizer
 from .models.encoders import ResnetEncoder
 from .models.FLAME import FLAME, FLAMETex
-from .models.decoders_AU import Generator
+from .models.decoders import Generator
 from .utils import util
 from .utils.rotation_converter import batch_euler2axis
 from .utils.tensor_cropper import transform_points
@@ -118,10 +118,10 @@ class DECA(nn.Module):
             # exit()
         # eval mode
         self.E_flame.eval()
-        self.E_detail.eval()
+        self.E_detail.train()
         self.D_detail.train()
-        self.AUNet.eval()
-        self.AU_Encoder.eval()
+        self.AUNet.train()
+        self.AU_Encoder.train()
 
     def decompose_code(self, code, num_dict):
         ''' Convert a flattened parameter vector to a dictionary of parameters
@@ -349,6 +349,6 @@ class DECA(nn.Module):
         return {
             'E_flame': self.E_flame.state_dict(),
             'E_detail': self.E_detail.state_dict(),
-            'D_detail': self.D_detail.state_dict(),
+            # 'D_detail': self.D_detail.state_dict(),
             'AU_Encoder':self.AU_Encoder.state_dict()
         }
