@@ -74,7 +74,8 @@ class Trainer(object):
         # # initialize loss   
         if self.train_detail:     
             self.mrf_loss = lossfunc.IDMRFLoss()
-            self.au_feature_loss=lossfunc.AU_Feature_Loss_()
+            # self.au_feature_loss=lossfunc.AU_Feature_Loss_()
+            self.au_feature_loss=lossfunc.AU_Feature_Loss()
             # self.vggface2_loss = lossfunc.VGGFace2Loss(pretrained_model='/home/cine/DJ/DECA/data/resnet50_ft_weight.pkl')
             # self.per_loss =  lossfunc.PerceptualLoss() 
             self.face_attr_mask = util.load_local_mask(image_size=self.cfg.model.uv_size, mode='bbx')
@@ -301,7 +302,8 @@ class Trainer(object):
                 losses['photo_detail_mrf'] = self.mrf_loss(uv_texture_patch*uv_vis_mask_patch, uv_texture_gt_patch*uv_vis_mask_patch)*self.cfg.loss.photo_D*self.cfg.loss.mrf
                 # losses['au_feature_loss'] = self.au_feature_loss(uv_texture_patch*uv_vis_mask_patch, uv_texture_gt_patch*uv_vis_mask_patch) # ver1
                 # losses['au_feature_loss'], losses['chin_loss'], losses['dimp_loss']= self.au_feature_loss(images, predicted_detail_images) # ver 2
-                losses['au_class_consistency_loss']= self.au_feature_loss(self.deca.AUNet(images)[1], self.deca.AUNet(predicted_detail_images)[1]) #ver 3
+                # losses['au_class_consistency_loss']= self.au_feature_loss(self.deca.AUNet(images)[1], self.deca.AUNet(predicted_detail_images)[1]) #ver 3
+                losses['au_class_consistency_loss'],losses['chin_loss'], losses['dimp_loss']= self.au_feature_loss(self.deca.AUNet(images)[1], self.deca.AUNet(predicted_detail_images)[1])#ver 4
                 # losses['vggface2_detail'] = self.vggface2_loss(predicted_detail_images, images)*self.cfg.loss.photo_D
                 
                 losses['z_reg'] = torch.mean(uv_z.abs())*self.cfg.loss.reg_z

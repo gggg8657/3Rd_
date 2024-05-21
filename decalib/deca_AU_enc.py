@@ -33,8 +33,8 @@ from .utils.rotation_converter import batch_euler2axis
 from .utils.tensor_cropper import transform_points
 from .datasets import build_datasets_detail
 from .utils.config import cfg
-
-from .models.encoders_enc import DetailAUTransformer
+from copy import deepcopy
+from .models.encoders_enc import DetailAUTransformer, TDC
 
 # from .models.OpenGraphAU.model.ANFL import AFG
 from .models.OpenGraphAU.model.MEFL import MEFARG
@@ -102,7 +102,7 @@ class DECA(nn.Module):
         self.AUNet = MEFARG(num_main_classes=self.auconf.num_main_classes, num_sub_classes=self.auconf.num_sub_classes, backbone=self.auconf.arc).to(self.device)
         self.AUNet = load_state_dict(self.AUNet, self.auconf.resume).to(self.device)
 
-        self.DAT = DetailAUTransformer(detail_dim=2048, au_dim=41, hidden_dim=256, output_dim=128, num_layers=4, num_heads=8).to(self.device)
+        self.DAT = TDC(nhid=512, nfeat=512, detail_dim=2048, au_dim=512, noutput=128, dropout=0.0, alpha=0.2, nheads=4, batchsize=8).to(self.device)
 
         # self.AU_Encoder = AUEncoder().to(self.device)
         
@@ -131,7 +131,7 @@ class DECA(nn.Module):
         # eval mode
         self.E_flame.eval()
         self.E_detail.train()
-        self.AUNet.train()
+        self.AUNet.eval()
         self.DAT.train()
         # self.AU_Encoder.train()
         self.D_detail.train()
@@ -184,18 +184,21 @@ class DECA(nn.Module):
         codedict = self.decompose_code(parameters, self.param_dict) # ... parameters are loaded into codedict
         codedict['images'] = images #codedict images as images
         if use_detail:
-            afn= self.AUNet(images)[1] # afn : [16,27,512] #codedict ['exp'] shape is [16,50]
+            afn_feats, afn, _= self.AUNet(images) # afn : [16,27,512] #codedict ['exp'] shape is [16,50]
             codedict['afn']=afn
+            codedict['afn_feats'] = afn_feats
             # codedict['afn'] = self.AU_Encoder(afn)
-            detailcode = self.E_detail(images)
+            detailcode, deca_detail_p = self.E_detail(images)
             codedict['detail_feature'] = detailcode
-            codedict['detail'] = self.DAT(codedict['detail_feature'], codedict['afn'])
+            codedict['detail'] = self.DAT(codedict['afn_feats'],codedict['detail_feature'])
         if self.cfg.model.jaw_type == 'euler':
             posecode = codedict['pose']
             euler_jaw_pose = posecode[:,3:].clone() # x for yaw (open mouth), y for pitch (left ang right), z for roll
             posecode[:,3:] = batch_euler2axis(euler_jaw_pose)
             codedict['pose'] = posecode
             codedict['euler_jaw_pose'] = euler_jaw_pose  
+        # self.codedict_deca = deepcopy(codedict)
+        # self.codedict_deca['detail'] = deca_detail_p
         return codedict
 
     # @torch.no_grad()
@@ -206,6 +209,7 @@ class DECA(nn.Module):
         
         ## decode
         verts, landmarks2d, landmarks3d = self.flame(shape_params=codedict['shape'], expression_params=codedict['exp'], pose_params=codedict['pose'])
+        # verts_deca, landmarks2d_deca, landmarks3d_deca = self.flame(shape_params=self.codedict_deca['shape'], expression_params=self.codedict_deca['exp'], pose_params=self.codedict_deca['pose'])
         if self.cfg.model.use_tex:
             albedo = self.flametex(codedict['tex'])
         else:
@@ -216,6 +220,7 @@ class DECA(nn.Module):
         landmarks2d = util.batch_orth_proj(landmarks2d, codedict['cam'])[:,:,:2]; landmarks2d[:,:,1:] = -landmarks2d[:,:,1:]#; landmarks2d = landmarks2d*self.image_size/2 + self.image_size/2
         landmarks3d = util.batch_orth_proj(landmarks3d, codedict['cam']); landmarks3d[:,:,1:] = -landmarks3d[:,:,1:] #; landmarks3d = landmarks3d*self.image_size/2 + self.image_size/2
         trans_verts = util.batch_orth_proj(verts, codedict['cam']); trans_verts[:,:,1:] = -trans_verts[:,:,1:]
+        # trans_verts_deca = util.batch_orth_proj(verts_deca, self.codedict_deca['cam']); trans_verts_deca[:,:,1:] = -trans_verts_deca[:,:,1:]
         opdict = {
             'verts': verts,
             'trans_verts': trans_verts,
@@ -241,6 +246,7 @@ class DECA(nn.Module):
         if rendering:
             # ops = self.render(verts, trans_verts, albedo, codedict['light'])
             ops = self.render(verts, trans_verts, albedo, h=h, w=w, background=background)
+            # ops_deca = self.render(verts_deca, trans_verts_deca, albedo, h=h, w=w, background=background)
             ## output
             opdict['grid'] = ops['grid']
             opdict['rendered_images'] = ops['images']
@@ -251,10 +257,15 @@ class DECA(nn.Module):
             opdict['albedo'] = albedo
             
         if use_detail:
-            uv_z = self.D_detail(torch.cat([codedict['pose'][:,3:], codedict['exp'], codedict['detail'],codedict['afn']], dim=1))
+            uv_z = self.D_detail(torch.cat([codedict['pose'][:,3:], codedict['exp'], codedict['detail']], dim=1))
+            
+            
+            # !!!uv_z_deca = self.D_detail(torch.cat([self.codedict_deca['pose'][:,3:], self.codedict_deca['exp'], self.codedict_deca['detail'],self.codedict_deca['afn']], dim=1))
             if iddict is not None:
-                uv_z = self.D_detail(torch.cat([iddict['pose'][:,3:], iddict['exp'], codedict['detail'],codedict['afn']], dim=1))
+                uv_z = self.D_detail(torch.cat([iddict['pose'][:,3:], iddict['exp'], codedict['detail']], dim=1))
             uv_detail_normals = self.displacement2normal(uv_z, verts, ops['normals'])
+ 
+            # uv_detail_normals_deca = self.displacement2normal(uv_z_deca, verts, ops['normals'])
             uv_shading = self.render.add_SHlight(uv_detail_normals, codedict['light'])
             uv_texture = albedo*uv_shading
 
@@ -272,7 +283,11 @@ class DECA(nn.Module):
             ## render shape
             shape_images, _, grid, alpha_images = self.render.render_shape(verts, trans_verts, h=h, w=w, images=background, return_grid=True)
             detail_normal_images = F.grid_sample(uv_detail_normals, grid, align_corners=False)*alpha_images
+
+            _, _, grid_deca, alpha_images_deca = self.render.render_shape(verts, trans_verts, h=h, w=w, images=background, return_grid=True)
+            # detail_normal_images_deca = F.grid_sample(uv_detail_normals_deca, grid_deca, align_corners=False)*alpha_images_deca
             shape_detail_images = self.render.render_shape(verts, trans_verts, detail_normal_images=detail_normal_images, h=h, w=w, images=background)
+            # shape_detail_images_deca = self.render.render_shape(verts, trans_verts, detail_normal_images=detail_normal_images_deca, h=h, w=w, images=background)
             
             ## extract texture
             ## TODO: current resolution 256x256, support higher resolution, and add visibility
