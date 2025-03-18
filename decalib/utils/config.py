@@ -17,7 +17,7 @@ cfg.device_id = '3,2'
 
 #cfg.pretrained_modelpath = '../../data/deca_model.tar'
 # cfg.pretrained_modelpath='/home/cine/Documents/DJ/DECA/Training/DECA_DJ3_AU_feat_loss_MEFARG_thresholding_VAMOS/model.tar'
-cfg.pretrained_modelpath='/home/cine/Documents/DJ/DECA/Training/AU_class_consistency_loss_L2_Loss_pytorch_mixed_precision/model.tar' #20240520 AU_param added to Decoder
+cfg.pretrained_modelpath='/home/cine/Documents/DJ/DECA/Training/AU_enc/model.tar' #20240520 AU_param added to Decoder
 # cfg.pretrained_modelpath = os.path.join(cfg.deca_dir, 'data', 'deca_model.tar')
 cfg.output_dir = ''
 cfg.rasterizer_type = 'pytorch3d'
@@ -64,8 +64,8 @@ cfg.dataset = CN()
 cfg.dataset.training_data = ['selfDataset']
 
 cfg.dataset.mediapipePath = '/home/cine/Documents/DJ/DECA/data/mediapipe_landmark_embedding.npz'
-cfg.dataset.batch_size = 16
-cfg.dataset.K = 1
+cfg.dataset.batch_size = 4
+cfg.dataset.K = 4
 cfg.dataset.isSingle = False
 cfg.dataset.num_workers = 2
 cfg.dataset.image_size = 224

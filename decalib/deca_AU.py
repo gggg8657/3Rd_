@@ -120,7 +120,7 @@ class DECA(nn.Module):
         self.E_flame.eval()
         self.E_detail.eval()
         self.D_detail.train()
-        self.AUNet.eval()
+        self.AUNet.train()
         self.AU_Encoder.eval()
 
     def decompose_code(self, code, num_dict):
@@ -158,7 +158,42 @@ class DECA(nn.Module):
         normals68 = self.flame.seletec_3d68(normals)
         vis68 = (normals68[:,:,2:] < 0.1).float()
         return vis68
-
+    def update_detail_codes(self, detail_code, B, K):
+        """
+        주어진 detail code를 그룹 평균으로 업데이트하는 함수.
+        
+        Parameters:
+        detail_code (torch.Tensor): 이미지들에 대한 detail code, shape [B * K, 128]
+        B (int): 배치 크기
+        K (int): 각 배치의 이미지 수
+        """
+        # 총 이미지 수 N은 B * K
+        N = B * K
+        assert detail_code.size(0) == N, "detail_code의 첫 번째 차원 크기는 B * K와 일치해야 합니다."
+        
+        # 각 배치에 대해 처리
+        updated_detail_code = detail_code.clone()  # 원본 detail_code를 복사하여 수정
+        for b in range(B):
+            # 현재 배치의 인덱스 범위
+            start_idx = b * K
+            end_idx = start_idx + K
+            
+            # 현재 배치의 detail code 추출
+            batch = detail_code[start_idx:end_idx]
+            
+            # NaN 값 확인 및 처리
+            if torch.isnan(batch).any():
+                print(f"NaN values found in batch {b}, replacing NaN with zero.")
+                batch = torch.nan_to_num(batch, nan=0.0)
+            
+            # 배치의 평균 계산
+            batch_mean = batch.mean(dim=0, keepdim=True)
+            
+            # 배치 평균을 새로운 변수에 할당
+            new_batch = batch_mean.expand_as(batch)
+            updated_detail_code[start_idx:end_idx] = new_batch
+        
+        return updated_detail_code
     # @torch.no_grad()
     def encode(self, images, use_detail=True):
         if use_detail:
@@ -175,6 +210,8 @@ class DECA(nn.Module):
             # codedict['afn'] = self.AU_Encoder(afn)
             detailcode = self.E_detail(images)
             codedict['detail'] = detailcode
+            codedict['detail_avg'] = self.update_detail_codes(codedict['detail'], self.cfg.dataset.batch_size, self.cfg.dataset.K)
+            # codedict['detail_avg'] = codedict['detail']
         if self.cfg.model.jaw_type == 'euler':
             posecode = codedict['pose']
             euler_jaw_pose = posecode[:,3:].clone() # x for yaw (open mouth), y for pitch (left ang right), z for roll
@@ -236,9 +273,9 @@ class DECA(nn.Module):
             opdict['albedo'] = albedo
             
         if use_detail:
-            uv_z = self.D_detail(torch.cat([codedict['pose'][:,3:], codedict['exp'], codedict['detail'],codedict['afn']], dim=1))
+            uv_z = self.D_detail(torch.cat([codedict['pose'][:,3:], codedict['exp'], codedict['detail_avg'],codedict['afn']], dim=1))
             if iddict is not None:
-                uv_z = self.D_detail(torch.cat([iddict['pose'][:,3:], iddict['exp'], codedict['detail'],codedict['afn']], dim=1))
+                uv_z = self.D_detail(torch.cat([iddict['pose'][:,3:], iddict['exp'], codedict['detail_avg'],codedict['afn']], dim=1))
             uv_detail_normals = self.displacement2normal(uv_z, verts, ops['normals'])
             uv_shading = self.render.add_SHlight(uv_detail_normals, codedict['light'])
             uv_texture = albedo*uv_shading
@@ -350,5 +387,6 @@ class DECA(nn.Module):
             'E_flame': self.E_flame.state_dict(),
             'E_detail': self.E_detail.state_dict(),
             'D_detail': self.D_detail.state_dict(),
+            'AUNet': self.AUNet.state_dict(),
             'AU_Encoder':self.AU_Encoder.state_dict()
         }

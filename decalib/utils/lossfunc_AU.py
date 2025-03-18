@@ -480,8 +480,70 @@ class PerceptualLoss(nn.Module):
 #             loss = self.criterion(src_feature_l[i], tar_feature_l[i])
 #             loss_ = loss_+loss 
 #         return loss_, chin_loss*2.0, dimp_loss*10.0
+from ..models.OpenGraphAU.conf import get_config
+class AU_Feature_Loss(nn.Module):
+    def __init__(self, num_main_classes = 27, num_sub_classes = 14, backbone=get_config().arc):
+        super(AU_Feature_Loss, self).__init__()
+        self.criterion = nn.MSELoss()
+
+    # def map_threshold(self, value: float):
+    #     # if value <= 0.2:
+    #     #     return 2
+    #     # elif value <= 0.4:
+    #     #     return 4
+    #     # elif value <= 0.6:
+    #     #     return 6
+    #     # elif value <= 0.8:
+    #     #     return 8
+    #     # else:
+    #     #     return 10
+    #     threshold = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+    #     for i in range(len(threshold)):
+    #         if value < threshold[i]:
+    #             return threshold[i]
+        
+    def forward(self, input_image, target_image):
+        loss_ = 0
+        chin_loss = 0
+        dimp_loss = 0
+        src_feature_l = []
+        tar_feature_l = []
+        src_chin_weighted_l = []
+        tar_chin_weighted_l = []
+        src_dimp_weighted_l = []
+        tar_dimp_weighted_l = []
+
+        BatchSize = input_image.size(0)
+        for i in range(BatchSize):    
+            input_features = input_image[i]
+            target_features = target_image[i]
+            # input image num is 16 , target image num is 16           
+
+            src_chin_score = input_features[14]  #AU 17 chin raiser
+            # src_chin_score = src_chin_score * self.map_threshold(src_chin_score)
+            tar_chin_score = target_features[14] 
+            # tar_chin_score = tar_chin_score * self.map_threshold(tar_chin_score)
+            src_dimp_score = input_features[11] + input_features[39] + input_features[40] #AU 14 dimpler
+            # src_dimp_score = src_dimp_score * self.map_threshold(src_dimp_score)
+            tar_dimp_score = target_features[11] + target_features[39] + target_features[40] #AU 14 dimpler AU14 : 11 / AUL14 : 40 / AUR14: :41
+            # tar_dimp_score = tar_dimp_score * self.map_threshold(tar_dimp_score)
+            
+            src_chin_weighted_l.append(src_chin_score)
+            tar_chin_weighted_l.append(tar_chin_score)
+            src_dimp_weighted_l.append(src_dimp_score)
+            tar_dimp_weighted_l.append(tar_dimp_score)
+            
+            src_feature_l.append(input_features)
+            tar_feature_l.append(target_features)
+        for i in range(BatchSize):
+            chin_loss = self.criterion(src_chin_weighted_l[i], tar_chin_weighted_l[i])
+            dimp_loss = self.criterion(src_dimp_weighted_l[i], tar_dimp_weighted_l[i])
+            loss = self.criterion(src_feature_l[i], tar_feature_l[i])
+            loss_ = loss_+loss 
+        return loss_, chin_loss*2.0, dimp_loss*10.0#, loss_-chin_loss-dimp_loss
 
 from ..models.OpenGraphAU.conf import get_config
+
 class AU_Feature_Loss_(nn.Module):
     def __init__(self, num_main_classes = 27, num_sub_classes = 14, backbone=get_config().arc):
         super(AU_Feature_Loss_, self).__init__()
@@ -492,7 +554,7 @@ class AU_Feature_Loss_(nn.Module):
         loss = self.criterion(gen_feats, input_feats)
         # loss = self.criterion(input_feats, gen_feats)
         # loss = loss + self.criterion(target_features[2], input_features[2])
-        return loss * 3e+1
+        return loss * 1e+0
 # class AU_Feature_Loss(nn.Module):
 #     def __init__(self, num_main_classes = 27, num_sub_classes = 14, backbone=get_config().arc):
 #         super(AU_Feature_Loss, self).__init__()
@@ -661,15 +723,23 @@ class IDMRFLoss(nn.Module):
         return self.patches_OIHW
 
     def compute_relative_distances(self, cdist):
-        epsilon = 1e-5
+        epsilon = 1e-6
         div = torch.min(cdist, dim=1, keepdim=True)[0]
+        min_val = 1e-12
+        div = torch.clamp(div, min=min_val)
+        if torch.any(div==0):
+            print("Found zero in the divisor")
         relative_dist = cdist / (div + epsilon)
+        if torch.isnan(relative_dist).any():
+            print("NaN values found in relative dist")
+        # print("relative_dist : ", relative_dist)
+        # print("div : " , div)
         return relative_dist
 
     def exp_norm_relative_dist(self, relative_dist):
         scaled_dist = relative_dist
         # dist_before_norm = torch.exp(((self.bias - scaled_dist)/self.nn_stretch_sigma).clamp(min=-20.0, max=20.0))
-        dist_before_norm = torch.exp(((self.bias - scaled_dist)/self.nn_stretch_sigma).clamp(min=-20.0, max=20.0))
+        dist_before_norm = torch.exp(((self.bias - scaled_dist)/self.nn_stretch_sigma).clamp(min=-30.0, max=30.0))
         self.cs_NCHW = self.sum_normalize(dist_before_norm)
         return self.cs_NCHW
 

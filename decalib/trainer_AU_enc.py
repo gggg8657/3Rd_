@@ -140,6 +140,7 @@ class Trainer(object):
         #-- encoder
         codedict = self.deca.encode(images, use_detail=self.train_detail)
         
+
         ### shape constraints for coarse model
         ### detail consistency for detail model
         # import ipdb; ipdb.set_trace()
@@ -163,7 +164,7 @@ class Trainer(object):
             for key in ['tex', 'exp', 'pose', 'cam', 'light', 'images']:
                 code = codedict[key]
                 codedict[key] = torch.cat([code, code], dim=0)
-            ## append gt
+            # append gt
             images = torch.cat([images, images], dim=0)# images = images.view(-1, images.shape[-3], images.shape[-2], images.shape[-1]) 
             lmk = torch.cat([lmk, lmk], dim=0) #lmk = lmk.view(-1, lmk.shape[-2], lmk.shape[-1])
             masks = torch.cat([masks, masks], dim=0)
@@ -412,6 +413,12 @@ class Trainer(object):
                             pin_memory=True,
                             drop_last=True)
         self.train_iter = iter(self.train_dataloader)
+        for batch in self.train_dataloader:
+            print("Batch image shape:", batch['image'].shape)
+            print("Batch mask shape:", batch['mask'].shape)
+            print("Batch kpts shape:", batch['kpts'].shape)
+            print("Batch dense_kpts shape:", batch['dense_kpts'].shape)
+            break
         # self.val_dataloader = DataLoader(self.val_dataset, batch_size=8, shuffle=True,
         #                     num_workers=8,
         #                     pin_memory=True,
@@ -420,7 +427,7 @@ class Trainer(object):
 
     def fit(self):
         self.prepare_data()
-
+        
         iters_every_epoch = int(len(self.train_dataset)/self.batch_size)
         start_epoch = self.global_step//iters_every_epoch
         for epoch in range(start_epoch, self.cfg.train.max_epochs):

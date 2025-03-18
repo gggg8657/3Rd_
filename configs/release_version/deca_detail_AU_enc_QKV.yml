@@ -10,11 +10,11 @@
 # '''
 # pretrained_modelpath: '/ps/scratch/yfeng/Data/Projects-data/DECA-training/training/DECA_SIGGRAPH/pretrain/model.tar'
 # this version is adding AU param to encoder network it also for AU class consistency loss via L2 Loss + pytorch mixed precision
-output_dir: "Training/AU_enc_QKV"
+output_dir: "Training/AU_enc_QKV_dataloadertest"
 pretrained_modelpath: "/home/cine/Documents/DJ/DECA/data/deca_model.tar"
 dataset:
-  batch_size: 12
-  K: 1
+  batch_size: 4
+  K: 4
 train:
   train_detail: True
   resume: True

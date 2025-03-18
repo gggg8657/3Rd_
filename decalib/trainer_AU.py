@@ -26,7 +26,7 @@ import cv2
 import pickle
 from loguru import logger
 from datetime import datetime
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from .utils.renderer import SRenderY
 from .models.encoders import ResnetEncoder
@@ -49,7 +49,8 @@ from .datasets import build_datasets_detail as build_datasets
 # from .datasets import build_datasets
 
 from torch.cuda.amp import autocast, GradScaler
-
+import torch
+torch.autograd.set_detect_anomaly(True)
 scaler = GradScaler()
 class Trainer(object):
     def __init__(self, model, config=None, device='cuda'):
@@ -121,10 +122,10 @@ class Trainer(object):
         else:
             logger.info('model path not found, start training from scratch')
             self.global_step = 0
-        self.AU_net = MEFARG(num_main_classes=self.auconf.num_main_classes, num_sub_classes=self.auconf.num_sub_classes, backbone=self.auconf.arc).to(self.device)
-        self.AU_net = load_state_dict(self.AU_net, self.auconf.resume).to(self.device)
-        self.AU_net.eval()
-
+        # self.deca.AUNet = MEFARG(num_main_classes=self.auconf.num_main_classes, num_sub_classes=self.auconf.num_sub_classes, backbone=self.auconf.arc).to(self.device)
+        # self.deca.AUNet = load_state_dict(self.deca.AUNet, self.auconf.resume).to(self.device)
+        # self.deca.AUNet.eval()
+    
     def training_step(self, batch, batch_nb, training_type='coarse'):
         self.deca.train()
         if self.train_detail:
@@ -136,6 +137,7 @@ class Trainer(object):
 
         #-- encoder
         codedict = self.deca.encode(images, use_detail=self.train_detail)
+        # codedict['detail_avg'] = self.update_detail_codes(codedict['detail'], self.batch_size, self.K)
         
         ### shape constraints for coarse model
         ### detail consistency for detail model
@@ -150,9 +152,9 @@ class Trainer(object):
             new_order = new_order.flatten()
             shapecode = codedict['shape']
             if self.train_detail:
-                detailcode = codedict['detail']
+                detailcode = codedict['detail_avg']
                 detailcode_new = detailcode[new_order]
-                codedict['detail'] = torch.cat([detailcode, detailcode_new], dim=0)
+                codedict['detail_avg'] = torch.cat([detailcode, detailcode_new], dim=0)
                 codedict['shape'] = torch.cat([shapecode, shapecode], dim=0)
             else:
                 shapecode_new = shapecode[new_order]
@@ -229,7 +231,7 @@ class Trainer(object):
             posecode = codedict['pose']
             texcode = codedict['tex']
             lightcode = codedict['light']
-            detailcode = codedict['detail']
+            detailcode = codedict['detail_avg']
             cam = codedict['cam']
 
             # FLAME - world space
@@ -253,7 +255,7 @@ class Trainer(object):
             predicted_images = ops['images']*mask_face_eye*ops['alpha_images']
 
             masks = masks[:,None,:,:]
-            au_param = self.AU_net(images)[1]
+            au_param = self.deca.AUNet(images)[1]
             uv_z = self.deca.D_detail(torch.cat([posecode[:,3:], expcode, detailcode,au_param], dim=1))
             # render detail
             uv_detail_normals = self.deca.displacement2normal(uv_z, verts, ops['normals'])
@@ -286,52 +288,52 @@ class Trainer(object):
             uv_texture_patch = F.interpolate(uv_texture[:, :, self.face_attr_mask[pi][2]:self.face_attr_mask[pi][3], self.face_attr_mask[pi][0]:self.face_attr_mask[pi][1]], [new_size, new_size], mode='bilinear')
             uv_texture_gt_patch = F.interpolate(uv_texture_gt[:, :, self.face_attr_mask[pi][2]:self.face_attr_mask[pi][3], self.face_attr_mask[pi][0]:self.face_attr_mask[pi][1]], [new_size, new_size], mode='bilinear')
             uv_vis_mask_patch = F.interpolate(uv_vis_mask[:, :, self.face_attr_mask[pi][2]:self.face_attr_mask[pi][3], self.face_attr_mask[pi][0]:self.face_attr_mask[pi][1]], [new_size, new_size], mode='bilinear')
-            with autocast():
-                losses['photo_detail'] = (uv_texture_patch*uv_vis_mask_patch - uv_texture_gt_patch*uv_vis_mask_patch).abs().mean()*self.cfg.loss.photo_D
-                
-
+            # with autocast():
+            losses['photo_detail'] = (uv_texture_patch*uv_vis_mask_patch - uv_texture_gt_patch*uv_vis_mask_patch).abs().mean()*self.cfg.loss.photo_D
             
 
-                #old mrf
-                # masks = masks*mask_face_eye*ops['alpha_images']
-                # losses['photo_detail_mrf'] = self.mrf_loss(uv_texture_patch*uv_vis_mask_patch, masks*uv_texture_gt_patch*uv_vis_mask_patch)*0.1
-                # losses['perceptual_detail'] = self.per_loss(predicted_detail_images, images)
-                losses['photo_detail_mrf'] = self.mrf_loss(uv_texture_patch*uv_vis_mask_patch, uv_texture_gt_patch*uv_vis_mask_patch)*self.cfg.loss.photo_D*self.cfg.loss.mrf
-                # losses['au_feature_loss'] = self.au_feature_loss(uv_texture_patch*uv_vis_mask_patch, uv_texture_gt_patch*uv_vis_mask_patch) # ver1
-                # losses['au_feature_loss'], losses['chin_loss'], losses['dimp_loss']= self.au_feature_loss(images, predicted_detail_images) # ver 2
-                losses['au_class_consistency_loss']= self.au_feature_loss(self.AU_net(images)[1], self.AU_net(predicted_detail_images)[1]) #ver 3
-                # losses['vggface2_detail'] = self.vggface2_loss(predicted_detail_images, images)*self.cfg.loss.photo_D
-                
-                losses['z_reg'] = torch.mean(uv_z.abs())*self.cfg.loss.reg_z
-                losses['z_diff'] = lossfunc.shading_smooth_loss(uv_shading)*self.cfg.loss.reg_diff
-                if self.cfg.loss.reg_sym > 0.:
-                    nonvis_mask = (1 - util.binary_erosion(uv_vis_mask))
-                    losses['z_sym'] = (nonvis_mask*(uv_z - torch.flip(uv_z, [-1]).detach()).abs()).sum()*self.cfg.loss.reg_sym
-            # img_afn = self.AU_net(images, use_gnn=True)[2]
-            # # img_afn = torch.round(img_afn*10, decimals=0)
-            # rend_afn = self.AU_net(predicted_detail_images, use_gnn=True)[2]
-            # # rend_afn = torch.round(rend_afn*10, decimals=0)
-            # losses['AU_feature'] = F.mse_loss(img_afn,rend_afn)*50
-            #original opdict location
-                opdict = {
-                    'verts': verts,
-                    'trans_verts': trans_verts,
-                    'landmarks2d': landmarks2d,
-                    # 'mp_landmark': mp_landmark,
-                    # 'predicted_deatil_shape' : 
-                    'predicted_images': predicted_images,
-                    'predicted_detail_images': predicted_detail_images,
-                    'images': images,
-                    'lmk': lmk
-                }
-                
-            #########################################################
-                all_loss = 0.
-                losses_key = losses.keys()
-                for key in losses_key:
-                    all_loss = all_loss + losses[key]
-                losses['all_loss'] = all_loss
-                return losses, opdict
+        
+
+            #old mrf
+            # masks = masks*mask_face_eye*ops['alpha_images']
+            # losses['photo_detail_mrf'] = self.mrf_loss(uv_texture_patch*uv_vis_mask_patch, masks*uv_texture_gt_patch*uv_vis_mask_patch)*0.1
+            # losses['perceptual_detail'] = self.per_loss(predicted_detail_images, images)
+            losses['photo_detail_mrf'] = self.mrf_loss(uv_texture_patch*uv_vis_mask_patch, uv_texture_gt_patch*uv_vis_mask_patch)*self.cfg.loss.photo_D*self.cfg.loss.mrf
+            # losses['au_feature_loss'] = self.au_feature_loss(uv_texture_patch*uv_vis_mask_patch, uv_texture_gt_patch*uv_vis_mask_patch) # ver1
+            # losses['au_feature_loss'], losses['chin_loss'], losses['dimp_loss']= self.au_feature_loss(images, predicted_detail_images) # ver 2
+            losses['au_class_consistency_loss']= self.au_feature_loss(self.deca.AUNet(images)[0], self.deca.AUNet(predicted_detail_images)[0]) #ver 3
+            # losses['vggface2_detail'] = self.vggface2_loss(predicted_detail_images, images)*self.cfg.loss.photo_D
+            
+            losses['z_reg'] = torch.mean(uv_z.abs())*self.cfg.loss.reg_z
+            losses['z_diff'] = lossfunc.shading_smooth_loss(uv_shading)*self.cfg.loss.reg_diff
+            if self.cfg.loss.reg_sym > 0.:
+                nonvis_mask = (1 - util.binary_erosion(uv_vis_mask))
+                losses['z_sym'] = (nonvis_mask*(uv_z - torch.flip(uv_z, [-1]).detach()).abs()).sum()*self.cfg.loss.reg_sym
+        # img_afn = self.deca.AUNet(images, use_gnn=True)[2]
+        # # img_afn = torch.round(img_afn*10, decimals=0)
+        # rend_afn = self.deca.AUNet(predicted_detail_images, use_gnn=True)[2]
+        # # rend_afn = torch.round(rend_afn*10, decimals=0)
+        # losses['AU_feature'] = F.mse_loss(img_afn,rend_afn)*50
+        #original opdict location
+            opdict = {
+                'verts': verts,
+                'trans_verts': trans_verts,
+                'landmarks2d': landmarks2d,
+                # 'mp_landmark': mp_landmark,
+                # 'predicted_deatil_shape' : 
+                'predicted_images': predicted_images,
+                'predicted_detail_images': predicted_detail_images,
+                'images': images,
+                'lmk': lmk
+            }
+            
+        #########################################################
+            all_loss = 0.
+            losses_key = losses.keys()
+            for key in losses_key:
+                all_loss = all_loss + losses[key]
+            losses['all_loss'] = all_loss
+            return losses, opdict
         
     # def validation_step(self):
     #     self.deca.eval()
@@ -402,12 +404,18 @@ class Trainer(object):
         self.train_dataset = build_datasets.build_train(self.cfg.dataset)
         # self.val_dataset = build_datasets.build_val(self.cfg.dataset)
         logger.info('---- training data numbers: ', len(self.train_dataset))
-
+        
         self.train_dataloader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=False,
                             num_workers=self.cfg.dataset.num_workers,
                             pin_memory=True,
                             drop_last=True)
         self.train_iter = iter(self.train_dataloader)
+        # for batch in self.train_iter:
+        #     print("Batch image shape:", batch['image'].shape)
+        #     print("Batch mask shape:", batch['mask'].shape)
+        #     print("Batch kpts shape:", batch['kpts'].shape)
+        #     print("Batch dense_kpts shape:", batch['dense_kpts'].shape)
+        #     break
         # self.val_dataloader = DataLoader(self.val_dataset, batch_size=8, shuffle=True,
         #                     num_workers=8,
         #                     pin_memory=True,
@@ -418,6 +426,7 @@ class Trainer(object):
         self.prepare_data()
 
         iters_every_epoch = int(len(self.train_dataset)/self.batch_size)
+        # start_epoch = 0
         start_epoch = self.global_step//iters_every_epoch
         for epoch in range(start_epoch, self.cfg.train.max_epochs):
             # for step, batch in enumerate(tqdm(self.train_dataloader, desc=f"Epoch: {epoch}/{self.cfg.train.max_epochs}")):
@@ -476,21 +485,21 @@ class Trainer(object):
 
                 all_loss = losses['all_loss']
 
-                # Scales the loss, and calls backward() on the scaled loss to create scaled gradients.
-                scaler.scale(all_loss).backward()
+                # # Scales the loss, and calls backward() on the scaled loss to create scaled gradients.
+                # scaler.scale(all_loss).backward()
 
-                # Unscales the gradients of optimizer's assigned params in-place
-                scaler.unscale_(self.opt)
+                # # Unscales the gradients of optimizer's assigned params in-place
+                # scaler.unscale_(self.opt)
 
-                # Step with the optimizer
-                scaler.step(self.opt)
+                # # Step with the optimizer
+                # scaler.step(self.opt)
 
-                # Updates the scale for next iteration
-                scaler.update()
+                # # Updates the scale for next iteration
+                # scaler.update()
 
-                self.opt.zero_grad()
-                self.global_step += 1
-                # self.opt.zero_grad(); all_loss.backward(); self.opt.step()
+                # self.opt.zero_grad()
                 # self.global_step += 1
+                self.opt.zero_grad(); all_loss.backward(); self.opt.step()
+                self.global_step += 1
                 if self.global_step > self.cfg.train.max_steps:
                     break
